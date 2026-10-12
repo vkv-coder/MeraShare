@@ -52,13 +52,29 @@ async function init() {
     return;
   }
 
+  const groupIds = data.map(g => g.group_id);
+  const { data: photos } = await supabaseClient
+    .from('ms_trip_photos')
+    .select('group_id, storage_path')
+    .in('group_id', groupIds)
+    .order('created_at', { ascending: false });
+
+  const coverByGroup = {};
+  (photos || []).forEach(p => {
+    if (!coverByGroup[p.group_id]) coverByGroup[p.group_id] = p.storage_path;
+  });
+
   listEl.innerHTML = data.map(g => {
     const bal = Number(g.my_net_balance);
     let balClass = 'amount-even', balText = 'all settled';
     if (bal > 0.005) { balClass = 'amount-owed'; balText = 'you are owed ₹' + bal.toFixed(2); }
     else if (bal < -0.005) { balClass = 'amount-owe'; balText = 'you owe ₹' + Math.abs(bal).toFixed(2); }
+    const cover = coverByGroup[g.group_id];
+    const thumb = cover
+      ? '<img class="trip-thumb" src="' + supabaseClient.storage.from('ms-trip-photos').getPublicUrl(cover).data.publicUrl + '">'
+      : '<span class="trip-thumb" style="display:flex;align-items:center;justify-content:center;background:var(--bg);font-size:1.3rem;">🧳</span>';
     return '<a class="group-item" href="group.html?id=' + g.group_id + '">' +
-      '<span>' + escapeHtml(g.name) + '</span>' +
+      '<span style="display:flex;align-items:center;gap:10px;">' + thumb + escapeHtml(g.name) + '</span>' +
       '<span class="' + balClass + '">' + balText + '</span>' +
       '</a>';
   }).join('');

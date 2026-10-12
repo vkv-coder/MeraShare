@@ -25,6 +25,14 @@
   </div>
 
   <div class="card">
+    <h2>Photos</h2>
+    <div class="photo-strip" id="photoStrip"><p class="muted">Loading...</p></div>
+    <input type="file" id="photoInput" accept="image/*" style="display:none;">
+    <button type="button" class="btn-secondary btn-block" id="addPhotoBtn" style="margin-top:10px;">+ Add Photo</button>
+    <div class="error-box" id="photoError"></div>
+  </div>
+
+  <div class="card">
     <h2>Balances</h2>
     <div id="balancesList"><p class="muted">Loading...</p></div>
   </div>
@@ -79,6 +87,75 @@ async function init() {
   await loadMembers();
   await loadBalances();
   await loadExpenses();
+  await loadPhotos();
+}
+
+function photoPublicUrl(path) {
+  return supabaseClient.storage.from('ms-trip-photos').getPublicUrl(path).data.publicUrl;
+}
+
+async function loadPhotos() {
+  const el = document.getElementById('photoStrip');
+  const { data, error } = await supabaseClient
+    .from('ms_trip_photos')
+    .select('*')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: false });
+
+  if (error) { el.innerHTML = '<p class="muted">Could not load photos.</p>'; return; }
+  if (!data || data.length === 0) { el.innerHTML = '<p class="muted">No photos yet. Add the first one below.</p>'; return; }
+
+  const { data: user } = await supabaseClient.auth.getUser();
+  const myUserId = user.user.id;
+
+  el.innerHTML = data.map(p => {
+    const canDelete = p.uploaded_by === myUserId;
+    return '<div class="photo-thumb">' +
+      '<img src="' + photoPublicUrl(p.storage_path) + '" loading="lazy">' +
+      (canDelete ? '<a href="#" class="photo-delete" onclick="deletePhoto(\'' + p.id + '\',\'' + p.storage_path + '\');return false;">✕</a>' : '') +
+      '</div>';
+  }).join('');
+}
+
+document.getElementById('addPhotoBtn').addEventListener('click', () => {
+  document.getElementById('photoInput').click();
+});
+
+document.getElementById('photoInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+
+  const errorBox = document.getElementById('photoError');
+  errorBox.style.display = 'none';
+
+  if (!file.type.startsWith('image/')) {
+    showError(errorBox, { message: 'Please choose an image file.' });
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    showError(errorBox, { message: 'Image is too large (max 8MB).' });
+    return;
+  }
+
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = groupId + '/' + crypto.randomUUID() + '.' + ext;
+
+  const { error: uploadErr } = await supabaseClient.storage.from('ms-trip-photos').upload(path, file);
+  if (uploadErr) { showError(errorBox, uploadErr); return; }
+
+  const { error: rpcErr } = await supabaseClient.rpc('ms_add_trip_photo', { p_group_id: groupId, p_storage_path: path });
+  if (rpcErr) { showError(errorBox, rpcErr); return; }
+
+  await loadPhotos();
+});
+
+async function deletePhoto(id, path) {
+  if (!confirm('Delete this photo?')) return;
+  await supabaseClient.storage.from('ms-trip-photos').remove([path]);
+  const { error } = await supabaseClient.rpc('ms_delete_trip_photo', { p_photo_id: id });
+  if (error) { alert(error.message); return; }
+  await loadPhotos();
 }
 
 async function loadGroup() {

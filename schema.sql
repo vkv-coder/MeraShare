@@ -665,3 +665,91 @@ grant execute on function
   ms_hide_group(uuid),
   ms_my_activity()
 to authenticated;
+
+-- ============================================================
+-- Trip photo gallery (storage bucket + metadata table + RPCs)
+-- ============================================================
+
+insert into storage.buckets (id, name, public)
+values ('ms-trip-photos', 'ms-trip-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "ms_trip_photos_select_public" on storage.objects;
+create policy "ms_trip_photos_select_public" on storage.objects
+  for select using (bucket_id = 'ms-trip-photos');
+
+-- Upload path convention: {group_id}/{uuid}.{ext} -- this policy checks the
+-- first path segment against the group the uploader is actually a member of.
+drop policy if exists "ms_trip_photos_insert_members" on storage.objects;
+create policy "ms_trip_photos_insert_members" on storage.objects
+  for insert with check (
+    bucket_id = 'ms-trip-photos'
+    and auth.role() = 'authenticated'
+    and exists (
+      select 1 from ms_group_members gm
+      where gm.user_id = auth.uid()
+        and gm.group_id::text = (storage.foldername(name))[1]
+    )
+  );
+
+drop policy if exists "ms_trip_photos_delete_own" on storage.objects;
+create policy "ms_trip_photos_delete_own" on storage.objects
+  for delete using (
+    bucket_id = 'ms-trip-photos'
+    and owner = auth.uid()
+  );
+
+create table if not exists ms_trip_photos (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references ms_groups(id) on delete cascade,
+  uploaded_by uuid not null references auth.users(id),
+  storage_path text not null,
+  caption text,
+  created_at timestamptz not null default now()
+);
+
+alter table ms_trip_photos enable row level security;
+revoke all on ms_trip_photos from anon, authenticated;
+grant select on ms_trip_photos to authenticated;
+
+drop policy if exists ms_trip_photos_select on ms_trip_photos;
+create policy ms_trip_photos_select on ms_trip_photos
+  for select to authenticated using (ms_is_group_member(group_id));
+
+create or replace function ms_add_trip_photo(p_group_id uuid, p_storage_path text, p_caption text default null)
+returns ms_trip_photos
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row ms_trip_photos;
+begin
+  if not ms_is_group_member(p_group_id) then
+    raise exception 'not a member of this group';
+  end if;
+  insert into ms_trip_photos (group_id, uploaded_by, storage_path, caption)
+  values (p_group_id, auth.uid(), p_storage_path, nullif(trim(p_caption), ''))
+  returning * into v_row;
+  return v_row;
+end;
+$$;
+
+-- Deletes the metadata row only; the client removes the storage object
+-- itself first (storage's own delete-own policy covers that call).
+create or replace function ms_delete_trip_photo(p_photo_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from ms_trip_photos where id = p_photo_id and uploaded_by = auth.uid();
+  if not found then
+    raise exception 'photo not found or not yours to delete';
+  end if;
+end;
+$$;
+
+revoke all on function ms_add_trip_photo(uuid, text, text), ms_delete_trip_photo(uuid) from public;
+grant execute on function ms_add_trip_photo(uuid, text, text), ms_delete_trip_photo(uuid) to authenticated;
