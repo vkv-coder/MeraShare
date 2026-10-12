@@ -1,4 +1,4 @@
-const CACHE_NAME = 'merashare-v1';
+const CACHE_NAME = 'merashare-v2';
 const SHELL_FILES = [
   '/index.html',
   '/login.html',
@@ -26,6 +26,19 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== location.origin) return;
+
+  // Page navigations: service workers force these into 'manual' redirect mode,
+  // so re-fetching event.request directly would turn the server's 307
+  // clean-URL redirect (e.g. /dashboard.html -> /dashboard) into an opaque,
+  // unusable response and fail the whole navigation (Chrome: net::ERR_FAILED).
+  // Re-issue as a fresh request with redirect:'follow' instead.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(url.pathname + url.search, { redirect: 'follow' })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
