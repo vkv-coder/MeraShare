@@ -1,4 +1,4 @@
-const CACHE_NAME = 'merashare-v4';
+const CACHE_NAME = 'merashare-v5';
 const SHELL_FILES = [
   '/index.html',
   '/login.html',
