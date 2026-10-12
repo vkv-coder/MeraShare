@@ -1,4 +1,4 @@
-const CACHE_NAME = 'merashare-v2';
+const CACHE_NAME = 'merashare-v3';
 const SHELL_FILES = [
   '/index.html',
   '/login.html',
@@ -31,14 +31,18 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== location.origin) return;
 
-  // Page navigations: service workers force these into 'manual' redirect mode,
-  // so re-fetching event.request directly would turn the server's 307
-  // clean-URL redirect (e.g. /dashboard.html -> /dashboard) into an opaque,
-  // unusable response and fail the whole navigation (Chrome: net::ERR_FAILED).
-  // Re-issue as a fresh request with redirect:'follow' instead.
+  // Page navigations always run in redirect mode 'manual' once a service
+  // worker intercepts them, and Chrome refuses to respondWith() ANY response
+  // whose .redirected flag is true in that case (net::ERR_FAILED) — true
+  // regardless of which fetch() produced it, {redirect:'follow'} included.
+  // So avoid the redirect ever happening: resolve Cloudflare's clean-URL
+  // mapping (strip trailing .html; /index -> /) ourselves before fetching,
+  // instead of requesting the original *.html path at all.
   if (event.request.mode === 'navigate') {
+    let cleanPath = url.pathname.replace(/\.html$/, '');
+    if (cleanPath === '/index' || cleanPath === '') cleanPath = '/';
     event.respondWith(
-      fetch(url.pathname + url.search, { redirect: 'follow' })
+      fetch(cleanPath + url.search, { redirect: 'follow' })
         .catch(() => caches.match(event.request))
     );
     return;
