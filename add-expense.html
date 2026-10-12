@@ -39,6 +39,7 @@
       <select id="paidBy"></select>
 
       <label>Split</label>
+      <p class="muted" style="margin:4px 0 0;">Uncheck anyone who isn't part of this particular expense — e.g. someone who joined a day late, or skips a non-veg meal.</p>
       <div class="split-type-tabs">
         <button type="button" data-type="equal" class="active">Equal</button>
         <button type="button" data-type="exact">Exact</button>
@@ -114,23 +115,39 @@ function renderSplitInputs() {
     const share = (amount / n).toFixed(2);
     el.innerHTML = members.map(m =>
       '<div class="split-member-row">' +
-      '<label>' + escapeHtml(m.display_name) + '</label>' +
+      '<label><input type="checkbox" class="exact-check" data-id="' + m.id + '" checked style="width:auto;margin-right:8px;">' + escapeHtml(m.display_name) + '</label>' +
       '<input type="number" step="0.01" class="exact-input" data-id="' + m.id + '" value="' + share + '">' +
       '</div>'
     ).join('');
     el.querySelectorAll('.exact-input').forEach(inp => inp.addEventListener('input', updateSplitStatus));
+    el.querySelectorAll('.exact-check').forEach(cb => cb.addEventListener('change', () => toggleRow('exact', cb)));
     updateSplitStatus();
   } else {
     const pct = (100 / n).toFixed(2);
     el.innerHTML = members.map(m =>
       '<div class="split-member-row">' +
-      '<label>' + escapeHtml(m.display_name) + '</label>' +
+      '<label><input type="checkbox" class="pct-check" data-id="' + m.id + '" checked style="width:auto;margin-right:8px;">' + escapeHtml(m.display_name) + '</label>' +
       '<input type="number" step="0.01" class="pct-input" data-id="' + m.id + '" value="' + pct + '">%' +
       '</div>'
     ).join('');
     el.querySelectorAll('.pct-input').forEach(inp => inp.addEventListener('input', updateSplitStatus));
+    el.querySelectorAll('.pct-check').forEach(cb => cb.addEventListener('change', () => toggleRow('pct', cb)));
     updateSplitStatus();
   }
+}
+
+function toggleRow(kind, checkbox) {
+  const id = checkbox.dataset.id;
+  const input = document.querySelector('.' + kind + '-input[data-id="' + id + '"]');
+  if (!checkbox.checked) {
+    input.dataset.prevValue = input.value;
+    input.value = 0;
+    input.disabled = true;
+  } else {
+    input.disabled = false;
+    input.value = input.dataset.prevValue || input.value;
+  }
+  updateSplitStatus();
 }
 
 function updateEqualShares() {
