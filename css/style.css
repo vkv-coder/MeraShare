@@ -283,6 +283,39 @@ button:hover, .btn:hover { background: var(--brand-dark); }
 
 .support-line a { color: var(--brand); text-decoration: none; }
 
+.how-it-works-line {
+  text-align: center;
+  margin: 24px 0 4px;
+}
+
+.how-it-works-line a {
+  color: var(--brand);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.powered-by {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 10px;
+}
+
+.anyapps-badge {
+  display: inline-flex;
+  align-items: center;
+  background: #0F1B3D;
+  color: #ffffff;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  text-decoration: none;
+  vertical-align: middle;
+}
+
+.anyapps-badge .accent { color: #FF6B35; }
+
 .split-type-tabs {
   display: flex;
   gap: 8px;
