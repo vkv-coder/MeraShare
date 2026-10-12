@@ -446,6 +446,40 @@ as $$
   order by g.created_at desc;
 $$;
 
+-- Per-counterparty balances from the caller's own point of view within a group:
+-- positive amount = other_member owes the caller; negative = caller owes other_member.
+-- This is what a Splitwise-style "X owes you / you owe Y" breakdown needs -- a single
+-- aggregate net_balance (ms_group_balances) correctly nets everyone together, but
+-- can't answer "does Rahul specifically still owe me the same amount" once Rahul
+-- also has an unrelated debt with a third member.
+create or replace function ms_pairwise_balances(p_group_id uuid)
+returns table (other_member_id uuid, other_display_name text, amount numeric)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select
+    o.id as other_member_id,
+    o.display_name as other_display_name,
+    round(
+      coalesce((select sum(s.share_amount) from ms_expense_splits s
+                join ms_expenses e on e.id = s.expense_id
+                where s.member_id = o.id and e.paid_by_member = c.id), 0)
+      - coalesce((select sum(s.share_amount) from ms_expense_splits s
+                  join ms_expenses e on e.id = s.expense_id
+                  where s.member_id = c.id and e.paid_by_member = o.id), 0)
+      + coalesce((select sum(t.amount) from ms_settlements t where t.from_member = c.id and t.to_member = o.id), 0)
+      - coalesce((select sum(t.amount) from ms_settlements t where t.from_member = o.id and t.to_member = c.id), 0)
+    , 2) as amount
+  from ms_group_members c
+  cross join ms_group_members o
+  where c.group_id = p_group_id and o.group_id = p_group_id
+    and c.user_id = auth.uid()
+    and o.id != c.id
+    and ms_is_group_member(p_group_id);
+$$;
+
 revoke all on function
   ms_create_group(text, text),
   ms_join_group(text, text),
@@ -455,6 +489,7 @@ revoke all on function
   ms_delete_expense(uuid),
   ms_record_settlement(uuid, uuid, uuid, numeric, text),
   ms_group_balances(uuid),
+  ms_pairwise_balances(uuid),
   ms_my_groups_summary()
 from public;
 
@@ -467,5 +502,6 @@ grant execute on function
   ms_delete_expense(uuid),
   ms_record_settlement(uuid, uuid, uuid, numeric, text),
   ms_group_balances(uuid),
+  ms_pairwise_balances(uuid),
   ms_my_groups_summary()
 to authenticated;

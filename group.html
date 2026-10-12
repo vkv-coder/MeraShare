@@ -99,16 +99,29 @@ async function loadMembers() {
 }
 
 async function loadBalances() {
-  const { data, error } = await supabaseClient.rpc('ms_group_balances', { p_group_id: groupId });
+  const { data, error } = await supabaseClient.rpc('ms_pairwise_balances', { p_group_id: groupId });
   const el = document.getElementById('balancesList');
   if (error || !data) { el.innerHTML = '<p class="muted">Could not load balances.</p>'; return; }
-  el.innerHTML = data.map(b => {
-    const bal = Number(b.net_balance);
+
+  if (data.length === 0) {
+    el.innerHTML = '<p class="muted">No one else in this group yet.</p>';
+    return;
+  }
+
+  const total = data.reduce((s, b) => s + Number(b.amount), 0);
+  let totalCls = 'amount-even', totalText = "You're all settled up";
+  if (total > 0.005) { totalCls = 'amount-owed'; totalText = 'Overall, you are owed ₹' + total.toFixed(2); }
+  else if (total < -0.005) { totalCls = 'amount-owe'; totalText = 'Overall, you owe ₹' + Math.abs(total).toFixed(2); }
+
+  const rows = data.map(b => {
+    const amt = Number(b.amount);
     let cls = 'amount-even', text = 'settled up';
-    if (bal > 0.005) { cls = 'amount-owed'; text = 'is owed ₹' + bal.toFixed(2); }
-    else if (bal < -0.005) { cls = 'amount-owe'; text = 'owes ₹' + Math.abs(bal).toFixed(2); }
-    return '<div class="balance-row"><span>' + escapeHtml(b.display_name) + '</span><span class="' + cls + '">' + text + '</span></div>';
+    if (amt > 0.005) { cls = 'amount-owed'; text = 'owes you ₹' + amt.toFixed(2); }
+    else if (amt < -0.005) { cls = 'amount-owe'; text = 'you owe ₹' + Math.abs(amt).toFixed(2); }
+    return '<div class="balance-row"><span>' + escapeHtml(b.other_display_name) + '</span><span class="' + cls + '">' + text + '</span></div>';
   }).join('');
+
+  el.innerHTML = '<p class="' + totalCls + '" style="margin:0 0 10px;font-weight:600;">' + totalText + '</p>' + rows;
 }
 
 async function loadExpenses() {
