@@ -20,6 +20,7 @@
     <div id="groupsList"><p class="muted">Loading...</p></div>
   </div>
 
+  <div id="createJoinSection">
   <div class="card">
     <h2>Create a group</h2>
     <form id="createForm">
@@ -39,6 +40,10 @@
       <div class="error-box" id="joinError"></div>
     </form>
   </div>
+  </div>
+  <div class="card" id="demoNotice" style="display:none;">
+    <p class="muted">Creating and joining groups is turned off in demo mode, to keep the shared demo account tidy for everyone trying it. Open <strong>Goa Trip 2026</strong> above to explore, or create a free account for your own groups.</p>
+  </div>
 
   <p class="support-line">Questions? <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a> · <a href="how-it-works.html">How it works</a></p>
 </div>
@@ -53,6 +58,11 @@ async function init() {
 
   const { data: userData } = await supabaseClient.auth.getUser();
   myName = (userData.user.user_metadata && userData.user.user_metadata.full_name) || 'Me';
+
+  if (userData.user.email === DEMO_ACCOUNT_EMAIL) {
+    document.getElementById('createJoinSection').style.display = 'none';
+    document.getElementById('demoNotice').style.display = 'block';
+  }
 
   await supabaseClient.rpc('ms_claim_pending_memberships');
   await loadGroups();

@@ -144,6 +144,9 @@ begin
   if auth.uid() is null then
     raise exception 'auth required';
   end if;
+  if auth.uid() = 'd4d40ce6-439e-4340-bc92-600a5c0891bb' then
+    raise exception 'the shared demo account cannot create new groups';
+  end if;
   if coalesce(trim(p_name), '') = '' then
     raise exception 'group name required';
   end if;
@@ -180,6 +183,9 @@ declare
 begin
   if auth.uid() is null then
     raise exception 'auth required';
+  end if;
+  if auth.uid() = 'd4d40ce6-439e-4340-bc92-600a5c0891bb' then
+    raise exception 'the shared demo account cannot join other groups';
   end if;
 
   select id into v_group_id from ms_groups where invite_code = upper(trim(p_invite_code));
