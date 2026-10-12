@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MeraShare — Split expenses with friends</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+</div>
+<div class="container">
+  <div class="card">
+    <h1>Split expenses. Settle up. No awkward math.</h1>
+    <p class="muted">Create a group with friends, family or roommates. Log shared expenses, split them equally, by exact amount, or by percentage — MeraShare tracks who owes who.</p>
+    <a class="btn btn-block" href="signup.html">Create account</a>
+    <a class="btn btn-secondary btn-block" href="login.html">Log in</a>
+    <a class="btn btn-secondary btn-block" id="demoBtn" href="demo-gate.html">Try Demo</a>
+  </div>
+
+  <div class="card">
+    <h2>How it works</h2>
+    <ol class="checklist">
+      <li>Create a group (trip, flat, family) and share the invite code.</li>
+      <li>Log an expense — split it equally, by exact amount, or by percentage.</li>
+      <li>MeraShare keeps a running balance for every member.</li>
+      <li>Record a settlement whenever someone pays someone back.</li>
+    </ol>
+    <a href="how-it-works.html">See full walkthrough →</a>
+  </div>
+
+  <p class="support-line">Questions or need help? <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a></p>
+  <footer class="legal">MeraShare · merashare.in</footer>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script>
+(async function () {
+  const { data } = await supabaseClient.auth.getSession();
+  if (data.session) {
+    window.location.href = 'dashboard.html';
+  }
+})();
+</script>
+</body>
+</html>

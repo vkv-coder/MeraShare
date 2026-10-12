@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Try Demo — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+  <a class="home-btn" href="index.html">Home</a>
+</div>
+<div class="container">
+  <div class="card">
+    <h1>Try the demo</h1>
+    <p class="muted">Just your name and phone so we know who's looking around — no account needed, nothing sensitive is stored.</p>
+    <form id="gateForm">
+      <label for="name">Your name</label>
+      <input type="text" id="name" required>
+
+      <label for="phone">Phone number</label>
+      <input type="tel" id="phone" required pattern="[0-9]{10}" placeholder="10-digit number">
+
+      <button type="submit" class="btn-block">Enter Demo</button>
+      <div class="error-box" id="errorBox"></div>
+    </form>
+  </div>
+  <p class="support-line">Questions? <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a></p>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script>
+const DEMO_EMAIL = 'demo+merashare@merashare.in';
+const DEMO_PASSWORD = 'MeraShareDemo2026!';
+const TELEGRAM_PROJECT_URL = 'https://jqqnnkzozjskziaizajg.supabase.co';
+const TELEGRAM_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg';
+
+function notifyDemoTrial(name, phone) {
+  try {
+    fetch(TELEGRAM_PROJECT_URL + '/functions/v1/send-telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TELEGRAM_ANON_KEY, 'apikey': TELEGRAM_ANON_KEY },
+      body: JSON.stringify({ chat_id: '8507770594', text: 'MeraShare: new demo trial - ' + name + ' (' + phone + ')' })
+    }).catch(function(){});
+  } catch (e) { /* never block demo entry on a notification failure */ }
+}
+
+const form = document.getElementById('gateForm');
+const errorBox = document.getElementById('errorBox');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorBox.style.display = 'none';
+
+  const name = document.getElementById('name').value.trim();
+  const phone = document.getElementById('phone').value.trim();
+
+  const { error: insertErr } = await supabaseClient.from('ms_demo_visitors').insert({ name, phone });
+  if (insertErr) { /* best-effort log, don't block entry */ }
+
+  notifyDemoTrial(name, phone);
+
+  const { error: loginErr } = await supabaseClient.auth.signInWithPassword({
+    email: DEMO_EMAIL,
+    password: DEMO_PASSWORD
+  });
+
+  if (loginErr) {
+    showError(errorBox, loginErr);
+    return;
+  }
+
+  window.location.href = 'how-it-works.html?from=demo';
+});
+</script>
+</body>
+</html>

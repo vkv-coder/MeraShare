@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settle Up — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+  <a class="home-btn" id="backBtn" href="#">Back</a>
+</div>
+<div class="container">
+  <div class="card">
+    <h1>Settle Up</h1>
+    <p class="muted">Record a payment someone made to clear part (or all) of their balance.</p>
+    <form id="settleForm">
+      <label for="fromMember">Who paid</label>
+      <select id="fromMember"></select>
+
+      <label for="toMember">Who received it</label>
+      <select id="toMember"></select>
+
+      <label for="amount">Amount (₹)</label>
+      <input type="number" id="amount" required min="0.01" step="0.01">
+
+      <label for="note">Note (optional)</label>
+      <input type="text" id="note" placeholder="e.g. Paid via UPI">
+
+      <button type="submit" class="btn-block">Record settlement</button>
+      <div class="error-box" id="errorBox"></div>
+    </form>
+  </div>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script>
+const groupId = new URLSearchParams(window.location.search).get('group');
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : s;
+  return d.innerHTML;
+}
+
+async function init() {
+  const session = await requireSession('login.html');
+  if (!session) return;
+  if (!groupId) { window.location.href = 'dashboard.html'; return; }
+  document.getElementById('backBtn').href = 'group.html?id=' + groupId;
+
+  const { data } = await supabaseClient.from('ms_group_members').select('*').eq('group_id', groupId).order('joined_at');
+  const members = data || [];
+  const options = members.map(m => '<option value="' + m.id + '">' + escapeHtml(m.display_name) + '</option>').join('');
+  document.getElementById('fromMember').innerHTML = options;
+  document.getElementById('toMember').innerHTML = options;
+  if (members.length > 1) document.getElementById('toMember').selectedIndex = 1;
+}
+
+document.getElementById('settleForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorBox = document.getElementById('errorBox');
+  errorBox.style.display = 'none';
+
+  const fromMember = document.getElementById('fromMember').value;
+  const toMember = document.getElementById('toMember').value;
+  const amount = parseFloat(document.getElementById('amount').value);
+  const note = document.getElementById('note').value.trim();
+
+  if (fromMember === toMember) {
+    showError(errorBox, { message: 'Payer and receiver must be different people.' });
+    return;
+  }
+
+  const { error } = await supabaseClient.rpc('ms_record_settlement', {
+    p_group_id: groupId,
+    p_from_member: fromMember,
+    p_to_member: toMember,
+    p_amount: amount,
+    p_note: note || null
+  });
+
+  if (error) { showError(errorBox, error); return; }
+  window.location.href = 'group.html?id=' + groupId;
+});
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Groups — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+  <a class="home-btn" href="#" id="logoutBtn">Log out</a>
+</div>
+<div class="container">
+  <div class="card">
+    <h1>My Groups</h1>
+    <div id="groupsList"><p class="muted">Loading...</p></div>
+  </div>
+
+  <div class="card">
+    <h2>Create a group</h2>
+    <form id="createForm">
+      <label for="groupName">Group name</label>
+      <input type="text" id="groupName" required placeholder="e.g. Goa Trip, Flat 3B">
+      <button type="submit" class="btn-block">Create group</button>
+      <div class="error-box" id="createError"></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Join a group</h2>
+    <form id="joinForm">
+      <label for="inviteCode">Invite code</label>
+      <input type="text" id="inviteCode" required placeholder="e.g. GOADEMO1" style="text-transform:uppercase;">
+      <button type="submit" class="btn-secondary btn-block">Join group</button>
+      <div class="error-box" id="joinError"></div>
+    </form>
+  </div>
+
+  <p class="support-line">Questions? <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a> · <a href="how-it-works.html">How it works</a></p>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script>
+let myName = 'Me';
+
+async function init() {
+  const session = await requireSession('login.html');
+  if (!session) return;
+
+  const { data: userData } = await supabaseClient.auth.getUser();
+  myName = (userData.user.user_metadata && userData.user.user_metadata.full_name) || 'Me';
+
+  await supabaseClient.rpc('ms_claim_pending_memberships');
+  await loadGroups();
+}
+
+async function loadGroups() {
+  const listEl = document.getElementById('groupsList');
+  const { data, error } = await supabaseClient.rpc('ms_my_groups_summary');
+
+  if (error) {
+    listEl.innerHTML = '<p class="muted">Could not load groups.</p>';
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="empty-state">No groups yet. Create one below, or join with an invite code.</div>';
+    return;
+  }
+
+  listEl.innerHTML = data.map(g => {
+    const bal = Number(g.my_net_balance);
+    let balClass = 'amount-even', balText = 'all settled';
+    if (bal > 0.005) { balClass = 'amount-owed'; balText = 'you are owed ₹' + bal.toFixed(2); }
+    else if (bal < -0.005) { balClass = 'amount-owe'; balText = 'you owe ₹' + Math.abs(bal).toFixed(2); }
+    return '<a class="group-item" href="group.html?id=' + g.group_id + '">' +
+      '<span>' + escapeHtml(g.name) + '</span>' +
+      '<span class="' + balClass + '">' + balText + '</span>' +
+      '</a>';
+  }).join('');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+document.getElementById('createForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorBox = document.getElementById('createError');
+  errorBox.style.display = 'none';
+  const name = document.getElementById('groupName').value.trim();
+
+  const { data, error } = await supabaseClient.rpc('ms_create_group', { p_name: name, p_display_name: myName });
+  if (error) { showError(errorBox, error); return; }
+  window.location.href = 'group.html?id=' + data.id;
+});
+
+document.getElementById('joinForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorBox = document.getElementById('joinError');
+  errorBox.style.display = 'none';
+  const code = document.getElementById('inviteCode').value.trim();
+
+  const { data, error } = await supabaseClient.rpc('ms_join_group', { p_invite_code: code, p_display_name: myName });
+  if (error) { showError(errorBox, error); return; }
+  window.location.href = 'group.html?id=' + data;
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async (e) => {
+  e.preventDefault();
+  await supabaseClient.auth.signOut();
+  window.location.href = 'index.html';
+});
+
+init();
+</script>
+</body>
+</html>

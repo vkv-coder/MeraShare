@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Group — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+  <a class="home-btn" href="dashboard.html">Home</a>
+</div>
+<div class="container">
+  <div class="card">
+    <h1 id="groupName">Loading...</h1>
+    <div class="invite-box">
+      <div class="muted">Invite code</div>
+      <div class="invite-code" id="inviteCode">—</div>
+      <button class="btn-secondary" id="copyInviteBtn" style="margin-top:8px;">Copy</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Balances</h2>
+    <div id="balancesList"><p class="muted">Loading...</p></div>
+  </div>
+
+  <div class="row">
+    <a class="btn" id="addExpenseBtn" href="#">+ Add Expense</a>
+    <a class="btn btn-secondary" id="settleBtn" href="#">Settle Up</a>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2>Expenses</h2>
+    <div id="expenseList"><p class="muted">Loading...</p></div>
+  </div>
+
+  <div class="card">
+    <h2>Members</h2>
+    <div id="membersList"><p class="muted">Loading...</p></div>
+    <form id="addMemberForm" style="margin-top:12px;">
+      <label for="memberEmail">Add member by email</label>
+      <input type="email" id="memberEmail" required placeholder="friend@example.com">
+      <label for="memberName">Their name</label>
+      <input type="text" id="memberName" required placeholder="e.g. Rahul">
+      <button type="submit" class="btn-secondary btn-block">Add to group</button>
+      <div class="error-box" id="addMemberError"></div>
+    </form>
+  </div>
+
+  <p class="support-line">Questions? <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a></p>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script>
+const groupId = new URLSearchParams(window.location.search).get('id');
+let members = [];
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : s;
+  return d.innerHTML;
+}
+
+async function init() {
+  const session = await requireSession('login.html');
+  if (!session) return;
+  if (!groupId) { window.location.href = 'dashboard.html'; return; }
+
+  document.getElementById('addExpenseBtn').href = 'add-expense.html?group=' + groupId;
+  document.getElementById('settleBtn').href = 'settle.html?group=' + groupId;
+
+  await loadGroup();
+  await loadMembers();
+  await loadBalances();
+  await loadExpenses();
+}
+
+async function loadGroup() {
+  const { data, error } = await supabaseClient.from('ms_groups').select('*').eq('id', groupId).single();
+  if (error || !data) { window.location.href = 'dashboard.html'; return; }
+  document.getElementById('groupName').textContent = data.name;
+  document.getElementById('inviteCode').textContent = data.invite_code;
+}
+
+async function loadMembers() {
+  const { data } = await supabaseClient.from('ms_group_members').select('*').eq('group_id', groupId);
+  members = data || [];
+  const el = document.getElementById('membersList');
+  if (members.length === 0) { el.innerHTML = '<p class="muted">No members.</p>'; return; }
+  el.innerHTML = members.map(m =>
+    '<div class="member-row"><span>' + escapeHtml(m.display_name) + '</span>' +
+    '<span class="muted">' + (m.user_id ? 'joined' : 'invited') + '</span></div>'
+  ).join('');
+}
+
+async function loadBalances() {
+  const { data, error } = await supabaseClient.rpc('ms_group_balances', { p_group_id: groupId });
+  const el = document.getElementById('balancesList');
+  if (error || !data) { el.innerHTML = '<p class="muted">Could not load balances.</p>'; return; }
+  el.innerHTML = data.map(b => {
+    const bal = Number(b.net_balance);
+    let cls = 'amount-even', text = 'settled up';
+    if (bal > 0.005) { cls = 'amount-owed'; text = 'is owed ₹' + bal.toFixed(2); }
+    else if (bal < -0.005) { cls = 'amount-owe'; text = 'owes ₹' + Math.abs(bal).toFixed(2); }
+    return '<div class="balance-row"><span>' + escapeHtml(b.display_name) + '</span><span class="' + cls + '">' + text + '</span></div>';
+  }).join('');
+}
+
+async function loadExpenses() {
+  const { data: expenses, error } = await supabaseClient
+    .from('ms_expenses')
+    .select('*')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: false });
+
+  const el = document.getElementById('expenseList');
+  if (error || !expenses || expenses.length === 0) {
+    el.innerHTML = '<div class="empty-state">No expenses yet. Add the first one above.</div>';
+    return;
+  }
+
+  const memberById = {};
+  members.forEach(m => memberById[m.id] = m.display_name);
+  const { data: user } = await supabaseClient.auth.getUser();
+  const myUserId = user.user.id;
+
+  el.innerHTML = expenses.map(e => {
+    const payer = memberById[e.paid_by_member] || '?';
+    const canDelete = e.created_by === myUserId;
+    return '<div class="expense-row">' +
+      '<span>' + escapeHtml(e.description) + '<br><span class="muted">paid by ' + escapeHtml(payer) + '</span></span>' +
+      '<span>₹' + Number(e.amount).toFixed(2) +
+      (canDelete ? ' <a href="#" class="muted" onclick="deleteExpense(\'' + e.id + '\');return false;" style="margin-left:8px;">✕</a>' : '') +
+      '</span></div>';
+  }).join('');
+}
+
+async function deleteExpense(id) {
+  if (!confirm('Delete this expense?')) return;
+  const { error } = await supabaseClient.rpc('ms_delete_expense', { p_expense_id: id });
+  if (error) { alert(error.message); return; }
+  await loadBalances();
+  await loadExpenses();
+}
+
+document.getElementById('copyInviteBtn').addEventListener('click', () => {
+  const code = document.getElementById('inviteCode').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.getElementById('copyInviteBtn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+});
+
+document.getElementById('addMemberForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorBox = document.getElementById('addMemberError');
+  errorBox.style.display = 'none';
+  const email = document.getElementById('memberEmail').value.trim();
+  const name = document.getElementById('memberName').value.trim();
+
+  const { error } = await supabaseClient.rpc('ms_add_member', { p_group_id: groupId, p_email: email, p_display_name: name });
+  if (error) { showError(errorBox, error); return; }
+  document.getElementById('addMemberForm').reset();
+  await loadMembers();
+  await loadBalances();
+});
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add Expense — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+  <a class="home-btn" id="backBtn" href="#">Back</a>
+</div>
+<div class="container">
+  <div class="card">
+    <h1>Add Expense</h1>
+    <form id="expenseForm">
+      <label for="description">Description</label>
+      <input type="text" id="description" required placeholder="e.g. Dinner, Cab, Groceries">
+
+      <label for="amount">Amount (₹)</label>
+      <input type="number" id="amount" required min="0.01" step="0.01">
+
+      <label for="category">Category</label>
+      <select id="category">
+        <option value="general">General</option>
+        <option value="food">Food</option>
+        <option value="transport">Transport</option>
+        <option value="accommodation">Accommodation</option>
+        <option value="shopping">Shopping</option>
+        <option value="entertainment">Entertainment</option>
+        <option value="other">Other</option>
+      </select>
+
+      <label for="paidBy">Paid by</label>
+      <select id="paidBy"></select>
+
+      <label>Split</label>
+      <div class="split-type-tabs">
+        <button type="button" data-type="equal" class="active">Equal</button>
+        <button type="button" data-type="exact">Exact</button>
+        <button type="button" data-type="percentage">Percentage</button>
+      </div>
+
+      <div id="splitInputs"></div>
+      <p class="muted" id="splitStatus"></p>
+
+      <button type="submit" class="btn-block">Save Expense</button>
+      <div class="error-box" id="errorBox"></div>
+    </form>
+  </div>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script>
+const groupId = new URLSearchParams(window.location.search).get('group');
+let members = [];
+let splitType = 'equal';
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : s;
+  return d.innerHTML;
+}
+
+async function init() {
+  const session = await requireSession('login.html');
+  if (!session) return;
+  if (!groupId) { window.location.href = 'dashboard.html'; return; }
+  document.getElementById('backBtn').href = 'group.html?id=' + groupId;
+
+  const { data } = await supabaseClient.from('ms_group_members').select('*').eq('group_id', groupId).order('joined_at');
+  members = data || [];
+
+  const paidBySelect = document.getElementById('paidBy');
+  paidBySelect.innerHTML = members.map(m => '<option value="' + m.id + '">' + escapeHtml(m.display_name) + '</option>').join('');
+
+  renderSplitInputs();
+  document.getElementById('amount').addEventListener('input', renderSplitInputs);
+}
+
+document.querySelectorAll('.split-type-tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.split-type-tabs button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    splitType = btn.dataset.type;
+    renderSplitInputs();
+  });
+});
+
+function getAmount() {
+  return parseFloat(document.getElementById('amount').value) || 0;
+}
+
+function renderSplitInputs() {
+  const el = document.getElementById('splitInputs');
+  const amount = getAmount();
+  const n = members.length || 1;
+
+  if (splitType === 'equal') {
+    const share = amount / n;
+    el.innerHTML = members.map(m =>
+      '<div class="split-member-row">' +
+      '<label><input type="checkbox" class="eq-check" data-id="' + m.id + '" checked style="width:auto;margin-right:8px;">' + escapeHtml(m.display_name) + '</label>' +
+      '<span class="muted eq-share" data-id="' + m.id + '">₹' + share.toFixed(2) + '</span>' +
+      '</div>'
+    ).join('');
+    el.querySelectorAll('.eq-check').forEach(cb => cb.addEventListener('change', updateEqualShares));
+    updateEqualShares();
+  } else if (splitType === 'exact') {
+    const share = (amount / n).toFixed(2);
+    el.innerHTML = members.map(m =>
+      '<div class="split-member-row">' +
+      '<label>' + escapeHtml(m.display_name) + '</label>' +
+      '<input type="number" step="0.01" class="exact-input" data-id="' + m.id + '" value="' + share + '">' +
+      '</div>'
+    ).join('');
+    el.querySelectorAll('.exact-input').forEach(inp => inp.addEventListener('input', updateSplitStatus));
+    updateSplitStatus();
+  } else {
+    const pct = (100 / n).toFixed(2);
+    el.innerHTML = members.map(m =>
+      '<div class="split-member-row">' +
+      '<label>' + escapeHtml(m.display_name) + '</label>' +
+      '<input type="number" step="0.01" class="pct-input" data-id="' + m.id + '" value="' + pct + '">%' +
+      '</div>'
+    ).join('');
+    el.querySelectorAll('.pct-input').forEach(inp => inp.addEventListener('input', updateSplitStatus));
+    updateSplitStatus();
+  }
+}
+
+function updateEqualShares() {
+  const amount = getAmount();
+  const included = Array.from(document.querySelectorAll('.eq-check:checked')).map(cb => cb.dataset.id);
+  const share = included.length ? amount / included.length : 0;
+  document.querySelectorAll('.eq-share').forEach(span => {
+    const included_ = included.includes(span.dataset.id);
+    span.textContent = included_ ? '₹' + share.toFixed(2) : '—';
+  });
+  document.getElementById('splitStatus').textContent = included.length + ' of ' + members.length + ' members included.';
+}
+
+function updateSplitStatus() {
+  const amount = getAmount();
+  const statusEl = document.getElementById('splitStatus');
+  if (splitType === 'exact') {
+    const total = Array.from(document.querySelectorAll('.exact-input')).reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+    const diff = amount - total;
+    statusEl.textContent = 'Splits total ₹' + total.toFixed(2) + ' of ₹' + amount.toFixed(2) + (Math.abs(diff) > 0.05 ? ' (off by ₹' + diff.toFixed(2) + ')' : ' ✓');
+  } else if (splitType === 'percentage') {
+    const total = Array.from(document.querySelectorAll('.pct-input')).reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+    statusEl.textContent = 'Percentages total ' + total.toFixed(2) + '%' + (Math.abs(total - 100) > 0.1 ? ' (should be 100%)' : ' ✓');
+  }
+}
+
+function buildSplits() {
+  const amount = getAmount();
+  if (splitType === 'equal') {
+    const included = Array.from(document.querySelectorAll('.eq-check:checked')).map(cb => cb.dataset.id);
+    const share = amount / included.length;
+    return included.map(id => ({ member_id: id, share_amount: share }));
+  } else if (splitType === 'exact') {
+    return Array.from(document.querySelectorAll('.exact-input')).map(i => ({
+      member_id: i.dataset.id, share_amount: parseFloat(i.value) || 0
+    }));
+  } else {
+    return Array.from(document.querySelectorAll('.pct-input')).map(i => ({
+      member_id: i.dataset.id, share_amount: amount * (parseFloat(i.value) || 0) / 100
+    }));
+  }
+}
+
+document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorBox = document.getElementById('errorBox');
+  errorBox.style.display = 'none';
+
+  const description = document.getElementById('description').value.trim();
+  const amount = getAmount();
+  const category = document.getElementById('category').value;
+  const paidBy = document.getElementById('paidBy').value;
+  const splits = buildSplits();
+
+  if (splits.length === 0) {
+    showError(errorBox, { message: 'Select at least one member to split with.' });
+    return;
+  }
+
+  const { error } = await supabaseClient.rpc('ms_add_expense', {
+    p_group_id: groupId,
+    p_description: description,
+    p_amount: amount,
+    p_paid_by_member: paidBy,
+    p_category: category,
+    p_splits: splits
+  });
+
+  if (error) { showError(errorBox, error); return; }
+  window.location.href = 'group.html?id=' + groupId;
+});
+
+init();
+</script>
+</body>
+</html>

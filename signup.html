@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign up — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+  <a class="home-btn" href="index.html">Home</a>
+</div>
+<div class="container">
+  <div class="card">
+    <h1>Create account</h1>
+    <form id="signupForm">
+      <label for="name">Your name</label>
+      <input type="text" id="name" required placeholder="e.g. Priya Shah">
+
+      <label for="email">Email</label>
+      <input type="email" id="email" required>
+
+      <label for="password">Password</label>
+      <input type="password" id="password" required minlength="6">
+
+      <button type="submit" class="btn-block">Sign up</button>
+      <div class="error-box" id="errorBox"></div>
+      <div class="success-box" id="successBox" style="display:none;"></div>
+    </form>
+    <p class="muted" style="margin-top:14px;">Already have an account? <a href="login.html">Log in</a></p>
+  </div>
+  <p class="support-line">Questions? <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a></p>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script>
+const form = document.getElementById('signupForm');
+const errorBox = document.getElementById('errorBox');
+const successBox = document.getElementById('successBox');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorBox.style.display = 'none';
+  successBox.style.display = 'none';
+
+  const name = document.getElementById('name').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const taggedEmail = tagAuthEmail(email);
+
+  const { data, error } = await supabaseClient.auth.signUp({
+    email: taggedEmail,
+    password,
+    options: { data: { full_name: name } }
+  });
+
+  if (error) {
+    if (/already registered/i.test(error.message)) {
+      const { error: signInErr } = await supabaseClient.auth.signInWithPassword({ email: taggedEmail, password });
+      if (!signInErr) {
+        window.location.href = 'dashboard.html';
+        return;
+      }
+      showError(errorBox, { message: 'An account with this email already exists on MeraShare. Please log in instead.' });
+      return;
+    }
+    showError(errorBox, error);
+    return;
+  }
+
+  if (data.session) {
+    window.location.href = 'dashboard.html';
+  } else {
+    successBox.style.display = 'block';
+    successBox.textContent = 'Account created. Check your email to confirm, then log in.';
+    form.reset();
+  }
+});
+</script>
+</body>
+</html>

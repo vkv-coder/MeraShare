@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How it works — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+  <a class="home-btn" id="homeBtn" href="index.html">Home</a>
+</div>
+<div class="container">
+  <div class="card" id="demoBanner" style="display:none;">
+    <h2>ℹ️ You're in the demo</h2>
+    <p class="muted">You're signed in as a shared demo account with a sample group already set up ("Goa Trip 2026"). Anything you add here is visible to other people trying the demo too — don't put anything private in it. Create your own free account any time to start a real group.</p>
+  </div>
+
+  <div class="card">
+    <h1>Welcome to MeraShare</h1>
+    <p class="muted">MeraShare keeps shared expenses fair and easy to track — for trips, flats, families or any group that splits costs together.</p>
+
+    <h2 style="margin-top:20px;">Things to try</h2>
+    <ul class="checklist">
+      <li>Open <strong>Goa Trip 2026</strong> from your groups list — it already has real sample expenses in it.</li>
+      <li>Check the <strong>Balances</strong> section on the group page to see who owes who, at a glance.</li>
+      <li>Tap <strong>Add Expense</strong> and try all three split types: <strong>Equal</strong> (divide evenly), <strong>Exact</strong> (type each person's share), and <strong>Percentage</strong> (split by %).</li>
+      <li>Tap <strong>Settle Up</strong> to record a payment someone made to clear their balance.</li>
+      <li>Create your own group from the dashboard and share its invite code with friends.</li>
+    </ul>
+  </div>
+
+  <div class="card" id="ctaCard">
+    <a class="btn btn-block" id="primaryCta" href="dashboard.html">Go to my groups</a>
+  </div>
+
+  <p class="support-line">Questions? <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a></p>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script>
+(async function () {
+  const { data } = await supabaseClient.auth.getSession();
+  if (data.session) {
+    document.getElementById('homeBtn').href = 'dashboard.html';
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('from') === 'demo') {
+      document.getElementById('demoBanner').style.display = 'block';
+    }
+  } else {
+    document.getElementById('ctaCard').innerHTML =
+      '<a class="btn btn-block" href="signup.html">Create account</a>' +
+      '<a class="btn btn-secondary btn-block" href="demo-gate.html">Try Demo</a>';
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log in — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+  <a class="home-btn" href="index.html">Home</a>
+</div>
+<div class="container">
+  <div class="card">
+    <h1>Log in</h1>
+    <form id="loginForm">
+      <label for="email">Email</label>
+      <input type="email" id="email" required>
+
+      <label for="password">Password</label>
+      <input type="password" id="password" required>
+
+      <button type="submit" class="btn-block">Log in</button>
+      <div class="error-box" id="errorBox"></div>
+    </form>
+    <p class="muted" style="margin-top:14px;">
+      <a href="reset-password.html">Forgot password?</a><br>
+      No account? <a href="signup.html">Sign up</a>
+    </p>
+  </div>
+  <p class="support-line">Questions? <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a></p>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script>
+(async function checkSession() {
+  const { data } = await supabaseClient.auth.getSession();
+  if (data.session) {
+    window.location.href = 'dashboard.html';
+  }
+})();
+
+const form = document.getElementById('loginForm');
+const errorBox = document.getElementById('errorBox');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorBox.style.display = 'none';
+
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  const { error } = await supabaseClient.auth.signInWithPassword({
+    email: tagAuthEmail(email),
+    password
+  });
+
+  if (error) {
+    showError(errorBox, error);
+    return;
+  }
+
+  window.location.href = 'dashboard.html';
+});
+</script>
+</body>
+</html>
