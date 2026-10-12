@@ -26,12 +26,11 @@
 
     <h2 style="margin-top:20px;">Try this exact flow</h2>
     <ol class="checklist">
-      <li>Open <strong>Goa Trip 2026</strong> from your groups list — Rahul and Simran are already members, no expenses yet.</li>
-      <li>Scroll to <strong>Members</strong> and use <strong>"Add member by email"</strong> to add <em>yourself as a new person</em> — type any name and a made-up email, e.g. "Priya" / <code>priya@test.com</code>. Now there are 4 people in the group.</li>
-      <li>Tap <strong>+ Add Expense</strong>. Log something "Priya" paid for (pick her as "Paid by"), split <strong>Equally</strong>, but try unchecking one member — e.g. Simran joined a day later and wasn't there for this one.</li>
-      <li>Add a second expense and split it <strong>Exact</strong> or <strong>Percentage</strong> instead — again, uncheck anyone who isn't sharing that particular cost.</li>
+      <li>Open <strong>Goa Trip 2026</strong> from your groups list — it's just you (Demo User), <strong>Rahul</strong> and <strong>Simran</strong>, no expenses yet.</li>
+      <li>Tap <strong>+ Add Expense</strong>. Log something you (Demo User) paid for, split <strong>Equally</strong>, but try unchecking one member — e.g. Simran joined a day later and wasn't there for this one.</li>
+      <li>Add a second expense, paid by Rahul this time, and split it <strong>Exact</strong> or <strong>Percentage</strong> instead — again, uncheck anyone who isn't sharing that particular cost.</li>
       <li>Check <strong>Balances</strong> — see exactly who owes who, based only on what you just added.</li>
-      <li>Tap <strong>Settle Up</strong> and record "Priya" paying her share to whoever she owes. Watch the balance update immediately.</li>
+      <li>Tap <strong>Settle Up</strong> and record Rahul or Simran paying their share to whoever they owe. Watch the balance update immediately.</li>
     </ol>
   </div>
 
@@ -53,9 +52,7 @@
       document.getElementById('demoBanner').style.display = 'block';
     }
   } else {
-    document.getElementById('ctaCard').innerHTML =
-      '<a class="btn btn-block" href="signup.html">Create account</a>' +
-      '<a class="btn btn-secondary btn-block" href="demo-gate.html">Try Demo</a>';
+    window.location.href = 'index.html';
   }
 })();
 </script>

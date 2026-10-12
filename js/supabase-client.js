@@ -39,3 +39,19 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
+
+const DEMO_ACCOUNT_EMAIL = 'demo+merashare@merashare.in';
+
+async function markDemoBadge() {
+  const { data } = await supabaseClient.auth.getUser();
+  if (!data || !data.user || data.user.email !== DEMO_ACCOUNT_EMAIL) return;
+  const brand = document.querySelector('.topbar .brand');
+  if (brand && !brand.querySelector('.demo-badge')) {
+    const badge = document.createElement('strong');
+    badge.className = 'demo-badge';
+    badge.textContent = 'DEMO';
+    brand.appendChild(badge);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', markDemoBadge);

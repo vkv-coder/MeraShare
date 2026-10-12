@@ -40,6 +40,19 @@ body {
   color: #fff;
 }
 
+.demo-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #1a1f26;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+
 .topbar a.home-btn {
   color: #fff;
   text-decoration: none;
