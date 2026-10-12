@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Add Expense — MeraShare</title>
+<title id="pageTitle">Add Expense — MeraShare</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f766e">
 <link rel="stylesheet" href="css/style.css">
@@ -16,13 +16,16 @@
 </div>
 <div class="container">
   <div class="card">
-    <h1>Add Expense</h1>
+    <h1 id="formHeading">Add Expense</h1>
     <form id="expenseForm">
       <label for="description">Description</label>
       <input type="text" id="description" required placeholder="e.g. Dinner, Cab, Groceries">
 
       <label for="amount">Amount (₹)</label>
       <input type="number" id="amount" required min="0.01" step="0.01">
+
+      <label for="referenceNote">Reference / Bill no. <span class="muted">(optional)</span></label>
+      <input type="text" id="referenceNote" placeholder="e.g. Bill #1234, UPI ref">
 
       <label for="category">Category</label>
       <select id="category">
@@ -49,7 +52,7 @@
       <div id="splitInputs"></div>
       <p class="muted" id="splitStatus"></p>
 
-      <button type="submit" class="btn-block">Save Expense</button>
+      <button type="submit" class="btn-block" id="submitBtn">Save Expense</button>
       <div class="error-box" id="errorBox"></div>
     </form>
   </div>
@@ -58,8 +61,10 @@
 <script src="js/supabase-client.js"></script>
 <script>
 const groupId = new URLSearchParams(window.location.search).get('group');
+const expenseId = new URLSearchParams(window.location.search).get('expense');
 let members = [];
 let splitType = 'equal';
+let existingSplits = null; // {member_id: share_amount} when editing
 
 function escapeHtml(s) {
   const d = document.createElement('div');
@@ -78,6 +83,29 @@ async function init() {
 
   const paidBySelect = document.getElementById('paidBy');
   paidBySelect.innerHTML = members.map(m => '<option value="' + m.id + '">' + escapeHtml(m.display_name) + '</option>').join('');
+
+  if (expenseId) {
+    document.getElementById('pageTitle').textContent = 'Edit Expense — MeraShare';
+    document.getElementById('formHeading').textContent = 'Edit Expense';
+    document.getElementById('submitBtn').textContent = 'Update Expense';
+
+    const { data: exp, error: expErr } = await supabaseClient.from('ms_expenses').select('*').eq('id', expenseId).single();
+    if (expErr || !exp) { window.location.href = 'group.html?id=' + groupId; return; }
+
+    document.getElementById('description').value = exp.description;
+    document.getElementById('amount').value = exp.amount;
+    document.getElementById('referenceNote').value = exp.reference_note || '';
+    document.getElementById('category').value = exp.category;
+    paidBySelect.value = exp.paid_by_member;
+
+    const { data: splits } = await supabaseClient.from('ms_expense_splits').select('*').eq('expense_id', expenseId);
+    existingSplits = {};
+    (splits || []).forEach(s => { existingSplits[s.member_id] = Number(s.share_amount); });
+
+    splitType = 'exact';
+    document.querySelectorAll('.split-type-tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelector('.split-type-tabs button[data-type="exact"]').classList.add('active');
+  }
 
   renderSplitInputs();
   document.getElementById('amount').addEventListener('input', renderSplitInputs);
@@ -112,13 +140,18 @@ function renderSplitInputs() {
     el.querySelectorAll('.eq-check').forEach(cb => cb.addEventListener('change', updateEqualShares));
     updateEqualShares();
   } else if (splitType === 'exact') {
-    const share = (amount / n).toFixed(2);
-    el.innerHTML = members.map(m =>
-      '<div class="split-member-row">' +
-      '<label><input type="checkbox" class="exact-check" data-id="' + m.id + '" checked style="width:auto;margin-right:8px;">' + escapeHtml(m.display_name) + '</label>' +
-      '<input type="number" step="0.01" class="exact-input" data-id="' + m.id + '" value="' + share + '">' +
-      '</div>'
-    ).join('');
+    const defaultShare = (amount / n).toFixed(2);
+    el.innerHTML = members.map(m => {
+      const editing = !!existingSplits;
+      const hasExisting = editing && Object.prototype.hasOwnProperty.call(existingSplits, m.id);
+      const checked = !editing || hasExisting;
+      const value = hasExisting ? existingSplits[m.id].toFixed(2) : (editing ? '0.00' : defaultShare);
+      return '<div class="split-member-row">' +
+        '<label><input type="checkbox" class="exact-check" data-id="' + m.id + '"' + (checked ? ' checked' : '') + ' style="width:auto;margin-right:8px;">' + escapeHtml(m.display_name) + '</label>' +
+        '<input type="number" step="0.01" class="exact-input" data-id="' + m.id + '" value="' + value + '"' + (checked ? '' : ' disabled') + '>' +
+        '</div>';
+    }).join('');
+    existingSplits = null; // only used to seed the first render
     el.querySelectorAll('.exact-input').forEach(inp => inp.addEventListener('input', updateSplitStatus));
     el.querySelectorAll('.exact-check').forEach(cb => cb.addEventListener('change', () => toggleRow('exact', cb)));
     updateSplitStatus();
@@ -199,6 +232,7 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
   const description = document.getElementById('description').value.trim();
   const amount = getAmount();
   const category = document.getElementById('category').value;
+  const referenceNote = document.getElementById('referenceNote').value.trim();
   const paidBy = document.getElementById('paidBy').value;
   const splits = buildSplits();
 
@@ -207,14 +241,25 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
     return;
   }
 
-  const { error } = await supabaseClient.rpc('ms_add_expense', {
-    p_group_id: groupId,
-    p_description: description,
-    p_amount: amount,
-    p_paid_by_member: paidBy,
-    p_category: category,
-    p_splits: splits
-  });
+  const { error } = expenseId
+    ? await supabaseClient.rpc('ms_update_expense', {
+        p_expense_id: expenseId,
+        p_description: description,
+        p_amount: amount,
+        p_paid_by_member: paidBy,
+        p_category: category,
+        p_splits: splits,
+        p_reference_note: referenceNote || null
+      })
+    : await supabaseClient.rpc('ms_add_expense', {
+        p_group_id: groupId,
+        p_description: description,
+        p_amount: amount,
+        p_paid_by_member: paidBy,
+        p_category: category,
+        p_splits: splits,
+        p_reference_note: referenceNote || null
+      });
 
   if (error) { showError(errorBox, error); return; }
   window.location.href = 'group.html?id=' + groupId;

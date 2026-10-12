@@ -36,6 +36,7 @@
 
   <div class="card" style="margin-top:16px;">
     <h2>Expenses</h2>
+    <p class="muted" id="expenseTotal" style="margin:-4px 0 10px;"></p>
     <div id="expenseList"><p class="muted">Loading...</p></div>
   </div>
 
@@ -132,10 +133,16 @@ async function loadExpenses() {
     .order('created_at', { ascending: false });
 
   const el = document.getElementById('expenseList');
+  const totalEl = document.getElementById('expenseTotal');
+
   if (error || !expenses || expenses.length === 0) {
     el.innerHTML = '<div class="empty-state">No expenses yet. Add the first one above.</div>';
+    totalEl.textContent = '';
     return;
   }
+
+  const grandTotal = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  totalEl.textContent = 'Total spent on this trip (everyone combined, regardless of who paid or who it was split with): ₹' + grandTotal.toFixed(2);
 
   const memberById = {};
   members.forEach(m => memberById[m.id] = m.display_name);
@@ -144,17 +151,21 @@ async function loadExpenses() {
 
   el.innerHTML = expenses.map(e => {
     const payer = memberById[e.paid_by_member] || '?';
-    const canDelete = e.created_by === myUserId;
+    const canEdit = e.created_by === myUserId;
+    const refLine = e.reference_note ? '<br><span class="muted">Ref: ' + escapeHtml(e.reference_note) + '</span>' : '';
     return '<div class="expense-row">' +
-      '<span>' + escapeHtml(e.description) + '<br><span class="muted">paid by ' + escapeHtml(payer) + '</span></span>' +
+      '<span>' + escapeHtml(e.description) + '<br><span class="muted">paid by ' + escapeHtml(payer) + '</span>' + refLine + '</span>' +
       '<span>₹' + Number(e.amount).toFixed(2) +
-      (canDelete ? ' <a href="#" class="muted" onclick="deleteExpense(\'' + e.id + '\');return false;" style="margin-left:8px;">✕</a>' : '') +
+      (canEdit ?
+        ' <a href="add-expense.html?group=' + groupId + '&expense=' + e.id + '" class="muted" style="margin-left:8px;">✎ Edit</a>' +
+        ' <a href="#" class="muted" onclick="deleteExpense(\'' + e.id + '\');return false;" style="margin-left:8px;">✕ Delete</a>'
+        : '') +
       '</span></div>';
   }).join('');
 }
 
 async function deleteExpense(id) {
-  if (!confirm('Delete this expense?')) return;
+  if (!confirm('Permanently delete this expense?\n\nThis will reverse its effect on every balance it was part of. If you just want to correct a mistake, use Edit instead — this cannot be undone.')) return;
   const { error } = await supabaseClient.rpc('ms_delete_expense', { p_expense_id: id });
   if (error) { alert(error.message); return; }
   await loadBalances();

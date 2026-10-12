@@ -34,6 +34,7 @@ create table if not exists ms_expenses (
   paid_by_member uuid not null references ms_group_members(id),
   created_by uuid not null references auth.users(id),
   category text not null default 'general',
+  reference_note text,
   created_at timestamptz not null default now()
 );
 
@@ -285,7 +286,8 @@ create or replace function ms_add_expense(
   p_amount numeric,
   p_paid_by_member uuid,
   p_category text,
-  p_splits jsonb
+  p_splits jsonb,
+  p_reference_note text default null
 )
 returns ms_expenses
 language plpgsql
@@ -331,8 +333,8 @@ begin
     raise exception 'splits (%) do not add up to amount (%)', v_sum, p_amount;
   end if;
 
-  insert into ms_expenses (group_id, description, amount, paid_by_member, created_by, category)
-  values (p_group_id, trim(p_description), p_amount, p_paid_by_member, auth.uid(), coalesce(trim(p_category), 'general'))
+  insert into ms_expenses (group_id, description, amount, paid_by_member, created_by, category, reference_note)
+  values (p_group_id, trim(p_description), p_amount, p_paid_by_member, auth.uid(), coalesce(trim(p_category), 'general'), nullif(trim(p_reference_note), ''))
   returning * into v_expense;
 
   for v_split in select * from jsonb_array_elements(p_splits) loop
@@ -340,6 +342,86 @@ begin
     values (
       v_expense.id,
       p_group_id,
+      (v_split->>'member_id')::uuid,
+      (v_split->>'share_amount')::numeric
+    );
+  end loop;
+
+  return v_expense;
+end;
+$$;
+
+create or replace function ms_update_expense(
+  p_expense_id uuid,
+  p_description text,
+  p_amount numeric,
+  p_paid_by_member uuid,
+  p_category text,
+  p_splits jsonb,
+  p_reference_note text default null
+)
+returns ms_expenses
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_expense ms_expenses;
+  v_group_id uuid;
+  v_split jsonb;
+  v_sum numeric := 0;
+  v_member_id uuid;
+  v_share numeric;
+begin
+  select group_id into v_group_id from ms_expenses where id = p_expense_id and created_by = auth.uid();
+  if v_group_id is null then
+    raise exception 'expense not found or not yours to edit';
+  end if;
+  if coalesce(trim(p_description), '') = '' then
+    raise exception 'description required';
+  end if;
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'amount must be positive';
+  end if;
+  if not exists (select 1 from ms_group_members where id = p_paid_by_member and group_id = v_group_id) then
+    raise exception 'paid_by member not in this group';
+  end if;
+  if jsonb_array_length(p_splits) = 0 then
+    raise exception 'at least one split required';
+  end if;
+
+  for v_split in select * from jsonb_array_elements(p_splits) loop
+    v_member_id := (v_split->>'member_id')::uuid;
+    v_share := (v_split->>'share_amount')::numeric;
+    if v_share is null or v_share < 0 then
+      raise exception 'invalid share amount';
+    end if;
+    if not exists (select 1 from ms_group_members where id = v_member_id and group_id = v_group_id) then
+      raise exception 'split member not in this group';
+    end if;
+    v_sum := v_sum + v_share;
+  end loop;
+
+  if abs(v_sum - p_amount) > 0.05 then
+    raise exception 'splits (%) do not add up to amount (%)', v_sum, p_amount;
+  end if;
+
+  update ms_expenses
+  set description = trim(p_description),
+      amount = p_amount,
+      paid_by_member = p_paid_by_member,
+      category = coalesce(trim(p_category), 'general'),
+      reference_note = nullif(trim(p_reference_note), '')
+  where id = p_expense_id
+  returning * into v_expense;
+
+  delete from ms_expense_splits where expense_id = p_expense_id;
+
+  for v_split in select * from jsonb_array_elements(p_splits) loop
+    insert into ms_expense_splits (expense_id, group_id, member_id, share_amount)
+    values (
+      p_expense_id,
+      v_group_id,
       (v_split->>'member_id')::uuid,
       (v_split->>'share_amount')::numeric
     );
@@ -485,7 +567,8 @@ revoke all on function
   ms_join_group(text, text),
   ms_add_member(uuid, text, text),
   ms_claim_pending_memberships(),
-  ms_add_expense(uuid, text, numeric, uuid, text, jsonb),
+  ms_add_expense(uuid, text, numeric, uuid, text, jsonb, text),
+  ms_update_expense(uuid, text, numeric, uuid, text, jsonb, text),
   ms_delete_expense(uuid),
   ms_record_settlement(uuid, uuid, uuid, numeric, text),
   ms_group_balances(uuid),
@@ -498,7 +581,8 @@ grant execute on function
   ms_join_group(text, text),
   ms_add_member(uuid, text, text),
   ms_claim_pending_memberships(),
-  ms_add_expense(uuid, text, numeric, uuid, text, jsonb),
+  ms_add_expense(uuid, text, numeric, uuid, text, jsonb, text),
+  ms_update_expense(uuid, text, numeric, uuid, text, jsonb, text),
   ms_delete_expense(uuid),
   ms_record_settlement(uuid, uuid, uuid, numeric, text),
   ms_group_balances(uuid),
