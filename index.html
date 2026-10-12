@@ -10,13 +10,27 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
-<div class="topbar">
-  <span class="brand">💸 MeraShare</span>
+<div class="hero">
+  <span class="hero-brand">💸 MeraShare</span>
+  <svg class="hero-illustration" viewBox="0 0 280 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three people splitting a bill">
+    <line x1="60" y1="48" x2="110" y2="90" stroke="#ffffff" stroke-width="3" opacity="0.6"/>
+    <line x1="220" y1="48" x2="170" y2="90" stroke="#ffffff" stroke-width="3" opacity="0.6"/>
+    <line x1="140" y1="33" x2="140" y2="85" stroke="#ffffff" stroke-width="3" opacity="0.6"/>
+    <circle cx="60" cy="32" r="20" fill="#f59e0b"/>
+    <circle cx="140" cy="18" r="20" fill="#fbbf24"/>
+    <circle cx="220" cy="32" r="20" fill="#34d399"/>
+    <rect x="88" y="85" width="104" height="100" rx="10" fill="#ffffff"/>
+    <rect x="88" y="85" width="104" height="100" rx="10" fill="none" stroke="#0b5a54" stroke-width="3"/>
+    <rect x="102" y="102" width="76" height="8" rx="4" fill="#99f6e4"/>
+    <rect x="102" y="120" width="56" height="8" rx="4" fill="#99f6e4"/>
+    <rect x="102" y="138" width="66" height="8" rx="4" fill="#99f6e4"/>
+    <text x="140" y="172" text-anchor="middle" font-size="26" font-weight="700" fill="#0b5a54">₹</text>
+  </svg>
+  <h1 class="hero-headline">Split bills. Not friendships.</h1>
+  <p class="hero-tagline">Trips, flats, family — MeraShare keeps shared expenses fair, down to the last rupee.</p>
 </div>
 <div class="container">
-  <div class="card">
-    <h1>Split expenses. Settle up. No awkward math.</h1>
-    <p class="muted">Create a group with friends, family or roommates. Log shared expenses, split them equally, by exact amount, or by percentage — MeraShare tracks who owes who.</p>
+  <div class="card" style="margin-top:-28px;position:relative;z-index:2;">
     <a class="btn btn-block" href="signup.html">Create account</a>
     <a class="btn btn-secondary btn-block" href="login.html">Log in</a>
     <a class="btn btn-secondary btn-block" id="demoBtn" href="demo-gate.html">Try Demo</a>
@@ -26,7 +40,7 @@
     <h2>How it works</h2>
     <ol class="checklist">
       <li>Create a group (trip, flat, family) and share the invite code.</li>
-      <li>Log an expense — split it equally, by exact amount, or by percentage.</li>
+      <li>Log an expense — split it as Equal Share, Different Amount, or Different %.</li>
       <li>MeraShare keeps a running balance for every member.</li>
       <li>Record a settlement whenever someone pays someone back.</li>
     </ol>

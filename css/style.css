@@ -49,6 +49,41 @@ body {
   min-height: 100vh;
 }
 
+.hero {
+  background: linear-gradient(160deg, var(--brand), var(--brand-dark));
+  color: #fff;
+  padding: 20px 20px 54px;
+  text-align: center;
+}
+
+.hero-brand {
+  display: block;
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: 4px;
+}
+
+.hero-illustration {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  margin: 8px auto 10px;
+  display: block;
+}
+
+.hero-headline {
+  font-size: 1.65rem;
+  font-weight: 800;
+  margin: 4px 0 8px;
+}
+
+.hero-tagline {
+  font-size: 0.95rem;
+  opacity: 0.92;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
 .topbar {
   display: flex;
   align-items: center;
