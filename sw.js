@@ -1,8 +1,11 @@
-const CACHE_NAME = 'merashare-v3';
+const CACHE_NAME = 'merashare-v4';
 const SHELL_FILES = [
   '/index.html',
   '/login.html',
   '/dashboard.html',
+  '/trips.html',
+  '/activity.html',
+  '/account.html',
   '/css/style.css',
   '/js/supabase-client.js',
   '/manifest.json'

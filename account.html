@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Account — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body class="has-tabs">
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+</div>
+<div class="container">
+  <div class="card">
+    <h1>Account</h1>
+    <label class="muted" style="margin-top:0;">Name</label>
+    <p id="profileName" style="margin:2px 0 10px;font-weight:600;">—</p>
+    <label class="muted">Email</label>
+    <p id="profileEmail" style="margin:2px 0 10px;font-weight:600;">—</p>
+  </div>
+
+  <div class="card" id="biometricCard">
+    <h2>App lock</h2>
+    <p class="muted">Unlock MeraShare with your fingerprint or face instead of re-entering your password every time you open the app. Your real login stays email + password underneath — this is just a quicker way back in on this device.</p>
+    <div class="row" style="align-items:center;margin-top:10px;">
+      <span>Biometric unlock</span>
+      <label style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:none;">
+        <input type="checkbox" id="biometricToggle" style="width:20px;height:20px;">
+      </label>
+    </div>
+    <div class="error-box" id="biometricError"></div>
+    <p class="muted" id="biometricUnavailable" style="display:none;">Biometric unlock isn't available in this browser/device.</p>
+  </div>
+
+  <div class="card">
+    <a href="#" class="btn btn-block" id="logoutBtn" style="background:var(--danger);">Log out</a>
+  </div>
+
+  <p class="support-line">Questions? <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a></p>
+</div>
+
+<nav class="bottom-tabs">
+  <a href="dashboard.html"><span class="tab-icon">🏘️</span>Group</a>
+  <a href="trips.html"><span class="tab-icon">🧳</span>Trip</a>
+  <a href="activity.html"><span class="tab-icon">🕒</span>Activity</a>
+  <a href="account.html" class="active"><span class="tab-icon">👤</span>Account</a>
+</nav>
+
+<script src="js/supabase-client.js"></script>
+<script>
+let myEmail = '', myName = '';
+
+async function init() {
+  const session = await requireSession('login.html');
+  if (!session) return;
+
+  const { data } = await supabaseClient.auth.getUser();
+  myEmail = untagAuthEmail(data.user.email);
+  myName = (data.user.user_metadata && data.user.user_metadata.full_name) || 'Me';
+  document.getElementById('profileName').textContent = myName;
+  document.getElementById('profileEmail').textContent = myEmail;
+
+  const toggle = document.getElementById('biometricToggle');
+  const available = await biometricAvailable();
+  if (!available) {
+    document.getElementById('biometricUnavailable').style.display = 'block';
+    toggle.disabled = true;
+  } else {
+    toggle.checked = biometricIsEnabled();
+  }
+}
+
+document.getElementById('biometricToggle').addEventListener('change', async (e) => {
+  const errorBox = document.getElementById('biometricError');
+  errorBox.style.display = 'none';
+  const toggle = e.target;
+
+  if (toggle.checked) {
+    try {
+      await biometricRegister(myEmail, myName);
+    } catch (err) {
+      toggle.checked = false;
+      showError(errorBox, { message: 'Could not set up biometric unlock: ' + err.message });
+    }
+  } else {
+    biometricDisable();
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async (e) => {
+  e.preventDefault();
+  await supabaseClient.auth.signOut();
+  window.location.href = 'index.html';
+});
+
+init();
+</script>
+</body>
+</html>

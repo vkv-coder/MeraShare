@@ -21,6 +21,7 @@ create table if not exists ms_group_members (
   invited_email text,
   display_name text not null,
   joined_at timestamptz not null default now(),
+  hidden boolean not null default false,
   constraint ms_member_identity check (user_id is not null or invited_email is not null),
   constraint ms_member_user_unique unique (group_id, user_id),
   constraint ms_member_email_unique unique (group_id, invited_email)
@@ -195,6 +196,7 @@ begin
   end if;
 
   if exists (select 1 from ms_group_members where group_id = v_group_id and user_id = auth.uid()) then
+    update ms_group_members set hidden = false where group_id = v_group_id and user_id = auth.uid();
     return v_group_id;
   end if;
 
@@ -524,8 +526,78 @@ as $$
       where me.user_id = auth.uid()
     ), 0) as my_net_balance
   from ms_groups g
+  join ms_group_members me2 on me2.group_id = g.id and me2.user_id = auth.uid()
   where ms_is_group_member(g.id)
+    and coalesce(me2.hidden, false) = false
   order by g.created_at desc;
+$$;
+
+-- Hides a group from the caller's own lists only (dashboard/trip/activity) --
+-- does not touch shared data, other members keep seeing everything normally.
+-- Rejoining via the invite code (ms_join_group) clears this back to visible.
+create or replace function ms_hide_group(p_group_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update ms_group_members
+  set hidden = true
+  where group_id = p_group_id and user_id = auth.uid();
+
+  if not found then
+    raise exception 'not a member of this group';
+  end if;
+end;
+$$;
+
+-- Derived activity feed (no separate log table) -- unions group-creation,
+-- expense, and settlement events across every non-hidden group the caller
+-- belongs to, newest first.
+create or replace function ms_my_activity()
+returns table (occurred_at timestamptz, group_id uuid, group_name text, kind text, detail text, amount numeric)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select * from (
+    select g.created_at as occurred_at, g.id as group_id, g.name as group_name,
+      'group_created'::text as kind,
+      'Created the trip "' || g.name || '"' as detail,
+      null::numeric as amount
+    from ms_groups g
+    join ms_group_members me on me.group_id = g.id and me.user_id = auth.uid()
+    where coalesce(me.hidden, false) = false
+
+    union all
+
+    select e.created_at, g.id, g.name,
+      'expense_added',
+      pm.display_name || ' paid ' || to_char(e.amount, 'FM999999999.00') || ' for "' || e.description || '"',
+      e.amount
+    from ms_expenses e
+    join ms_groups g on g.id = e.group_id
+    join ms_group_members me on me.group_id = g.id and me.user_id = auth.uid()
+    join ms_group_members pm on pm.id = e.paid_by_member
+    where coalesce(me.hidden, false) = false
+
+    union all
+
+    select t.created_at, g.id, g.name,
+      'settlement',
+      fm.display_name || ' paid ' || tm.display_name || ' ' || to_char(t.amount, 'FM999999999.00'),
+      t.amount
+    from ms_settlements t
+    join ms_groups g on g.id = t.group_id
+    join ms_group_members me on me.group_id = g.id and me.user_id = auth.uid()
+    join ms_group_members fm on fm.id = t.from_member
+    join ms_group_members tm on tm.id = t.to_member
+    where coalesce(me.hidden, false) = false
+  ) u
+  order by occurred_at desc
+  limit 200;
 $$;
 
 -- Per-counterparty balances from the caller's own point of view within a group:
@@ -573,7 +645,9 @@ revoke all on function
   ms_record_settlement(uuid, uuid, uuid, numeric, text),
   ms_group_balances(uuid),
   ms_pairwise_balances(uuid),
-  ms_my_groups_summary()
+  ms_my_groups_summary(),
+  ms_hide_group(uuid),
+  ms_my_activity()
 from public;
 
 grant execute on function
@@ -587,5 +661,7 @@ grant execute on function
   ms_record_settlement(uuid, uuid, uuid, numeric, text),
   ms_group_balances(uuid),
   ms_pairwise_balances(uuid),
-  ms_my_groups_summary()
+  ms_my_groups_summary(),
+  ms_hide_group(uuid),
+  ms_my_activity()
 to authenticated;

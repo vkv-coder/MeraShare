@@ -14,6 +14,34 @@
 
 * { box-sizing: border-box; }
 
+body.has-tabs { padding-bottom: 68px; }
+
+.bottom-tabs {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  z-index: 20;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.bottom-tabs a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px 10px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.bottom-tabs a .tab-icon { font-size: 1.25rem; line-height: 1; }
+
+.bottom-tabs a.active { color: var(--brand); font-weight: 700; }
+
 body {
   margin: 0;
   background: var(--bg);

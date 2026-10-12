@@ -9,10 +9,9 @@
 <link rel="stylesheet" href="css/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
-<body>
+<body class="has-tabs">
 <div class="topbar">
   <span class="brand">💸 MeraShare</span>
-  <a class="home-btn" href="#" id="logoutBtn">Log out</a>
 </div>
 <div class="container">
   <div class="card">
@@ -48,6 +47,13 @@
   <p class="support-line">Questions? <a href="mailto:vkvcoder.support@gmail.com">vkvcoder.support@gmail.com</a> · <a href="how-it-works.html">How it works</a></p>
 </div>
 
+<nav class="bottom-tabs">
+  <a href="dashboard.html" class="active"><span class="tab-icon">🏘️</span>Group</a>
+  <a href="trips.html"><span class="tab-icon">🧳</span>Trip</a>
+  <a href="activity.html"><span class="tab-icon">🕒</span>Activity</a>
+  <a href="account.html"><span class="tab-icon">👤</span>Account</a>
+</nav>
+
 <script src="js/supabase-client.js"></script>
 <script>
 let myName = 'Me';
@@ -82,13 +88,20 @@ async function loadGroups() {
     return;
   }
 
+  const membersByGroup = {};
+  const { data: allMembers } = await supabaseClient.from('ms_group_members').select('group_id, display_name');
+  (allMembers || []).forEach(m => {
+    (membersByGroup[m.group_id] = membersByGroup[m.group_id] || []).push(m.display_name);
+  });
+
   listEl.innerHTML = data.map(g => {
     const bal = Number(g.my_net_balance);
     let balClass = 'amount-even', balText = 'all settled';
     if (bal > 0.005) { balClass = 'amount-owed'; balText = 'you are owed ₹' + bal.toFixed(2); }
     else if (bal < -0.005) { balClass = 'amount-owe'; balText = 'you owe ₹' + Math.abs(bal).toFixed(2); }
+    const names = (membersByGroup[g.group_id] || []).map(escapeHtml).join(', ');
     return '<a class="group-item" href="group.html?id=' + g.group_id + '">' +
-      '<span>' + escapeHtml(g.name) + '</span>' +
+      '<span>' + escapeHtml(g.name) + '<br><span class="muted" style="font-size:0.8rem;">' + names + '</span></span>' +
       '<span class="' + balClass + '">' + balText + '</span>' +
       '</a>';
   }).join('');
@@ -120,12 +133,6 @@ document.getElementById('joinForm').addEventListener('submit', async (e) => {
   const { data, error } = await supabaseClient.rpc('ms_join_group', { p_invite_code: code, p_display_name: myName });
   if (error) { showError(errorBox, error); return; }
   window.location.href = 'group.html?id=' + data;
-});
-
-document.getElementById('logoutBtn').addEventListener('click', async (e) => {
-  e.preventDefault();
-  await supabaseClient.auth.signOut();
-  window.location.href = 'index.html';
 });
 
 init();

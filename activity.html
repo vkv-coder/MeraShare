@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activity — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body class="has-tabs">
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+</div>
+<div class="container">
+  <div class="card">
+    <h1>Activity</h1>
+    <p class="muted">Everything that's happened across all your trips, newest first.</p>
+    <div id="activityList"><p class="muted">Loading...</p></div>
+  </div>
+
+  <div class="card">
+    <h2>Manage trips</h2>
+    <p class="muted">Remove a trip from your own lists — it stays fully intact for everyone else in it, and you can always come back with its invite code.</p>
+    <div id="manageTripsList"><p class="muted">Loading...</p></div>
+  </div>
+</div>
+
+<nav class="bottom-tabs">
+  <a href="dashboard.html"><span class="tab-icon">🏘️</span>Group</a>
+  <a href="trips.html"><span class="tab-icon">🧳</span>Trip</a>
+  <a href="activity.html" class="active"><span class="tab-icon">🕒</span>Activity</a>
+  <a href="account.html"><span class="tab-icon">👤</span>Account</a>
+</nav>
+
+<script src="js/supabase-client.js"></script>
+<script>
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : s;
+  return d.innerHTML;
+}
+
+function formatDateHeading(dateStr) {
+  const d = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a, b) => a.toDateString() === b.toDateString();
+  if (sameDay(d, today)) return 'Today';
+  if (sameDay(d, yesterday)) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+const ICONS = { group_created: '🧳', expense_added: '💸', settlement: '🤝' };
+
+async function init() {
+  const session = await requireSession('login.html');
+  if (!session) return;
+
+  await Promise.all([loadActivity(), loadManageTrips()]);
+}
+
+async function loadActivity() {
+  const el = document.getElementById('activityList');
+  const { data, error } = await supabaseClient.rpc('ms_my_activity');
+
+  if (error || !data) { el.innerHTML = '<p class="muted">Could not load activity.</p>'; return; }
+  if (data.length === 0) { el.innerHTML = '<div class="empty-state">No activity yet.</div>'; return; }
+
+  let html = '';
+  let lastHeading = null;
+  data.forEach(item => {
+    const heading = formatDateHeading(item.occurred_at);
+    if (heading !== lastHeading) {
+      html += '<h2 style="margin-top:18px;font-size:0.95rem;color:var(--muted);">' + heading + '</h2>';
+      lastHeading = heading;
+    }
+    const time = new Date(item.occurred_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    html += '<div class="expense-row">' +
+      '<span>' + (ICONS[item.kind] || '•') + ' ' + escapeHtml(item.detail) +
+      '<br><span class="muted" style="font-size:0.8rem;">' + escapeHtml(item.group_name) + ' · ' + time + '</span></span>' +
+      '</div>';
+  });
+  el.innerHTML = html;
+}
+
+async function loadManageTrips() {
+  const el = document.getElementById('manageTripsList');
+  const { data, error } = await supabaseClient.rpc('ms_my_groups_summary');
+
+  if (error || !data) { el.innerHTML = '<p class="muted">Could not load trips.</p>'; return; }
+  if (data.length === 0) { el.innerHTML = '<p class="muted">No trips yet.</p>'; return; }
+
+  el.innerHTML = data.map(g =>
+    '<div class="member-row"><span>' + escapeHtml(g.name) + '</span>' +
+    '<a href="#" class="muted" onclick="hideTrip(\'' + g.group_id + '\', \'' + escapeHtml(g.name).replace(/'/g, "\\'") + '\');return false;">Remove from my list</a></div>'
+  ).join('');
+}
+
+async function hideTrip(groupId, name) {
+  const ok = confirm('Remove "' + name + '" from your Group/Trip/Activity lists?\n\nThis only affects your own view — everyone else in the trip keeps seeing it and everything in it normally. You can come back anytime using its invite code.');
+  if (!ok) return;
+
+  const { error } = await supabaseClient.rpc('ms_hide_group', { p_group_id: groupId });
+  if (error) { alert(error.message); return; }
+  await Promise.all([loadActivity(), loadManageTrips()]);
+}
+
+init();
+</script>
+</body>
+</html>

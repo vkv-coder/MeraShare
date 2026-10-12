@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trips — MeraShare</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body class="has-tabs">
+<div class="topbar">
+  <span class="brand">💸 MeraShare</span>
+</div>
+<div class="container">
+  <div class="card">
+    <h1>Select a Trip</h1>
+    <p class="muted">Pick a trip to view its expenses, balances and settle up.</p>
+    <div id="tripsList"><p class="muted">Loading...</p></div>
+  </div>
+</div>
+
+<nav class="bottom-tabs">
+  <a href="dashboard.html"><span class="tab-icon">🏘️</span>Group</a>
+  <a href="trips.html" class="active"><span class="tab-icon">🧳</span>Trip</a>
+  <a href="activity.html"><span class="tab-icon">🕒</span>Activity</a>
+  <a href="account.html"><span class="tab-icon">👤</span>Account</a>
+</nav>
+
+<script src="js/supabase-client.js"></script>
+<script>
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function init() {
+  const session = await requireSession('login.html');
+  if (!session) return;
+
+  const listEl = document.getElementById('tripsList');
+  const { data, error } = await supabaseClient.rpc('ms_my_groups_summary');
+
+  if (error) {
+    listEl.innerHTML = '<p class="muted">Could not load trips.</p>';
+    return;
+  }
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="empty-state">No trips yet. Create or join one from the Group tab.</div>';
+    return;
+  }
+
+  listEl.innerHTML = data.map(g => {
+    const bal = Number(g.my_net_balance);
+    let balClass = 'amount-even', balText = 'all settled';
+    if (bal > 0.005) { balClass = 'amount-owed'; balText = 'you are owed ₹' + bal.toFixed(2); }
+    else if (bal < -0.005) { balClass = 'amount-owe'; balText = 'you owe ₹' + Math.abs(bal).toFixed(2); }
+    return '<a class="group-item" href="group.html?id=' + g.group_id + '">' +
+      '<span>' + escapeHtml(g.name) + '</span>' +
+      '<span class="' + balClass + '">' + balText + '</span>' +
+      '</a>';
+  }).join('');
+}
+
+init();
+</script>
+</body>
+</html>
