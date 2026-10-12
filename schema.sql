@@ -417,8 +417,8 @@ as $$
     round(
       coalesce((select sum(e.amount) from ms_expenses e where e.paid_by_member = m.id), 0)
       - coalesce((select sum(s.share_amount) from ms_expense_splits s where s.member_id = m.id), 0)
-      + coalesce((select sum(t.amount) from ms_settlements t where t.to_member = m.id), 0)
-      - coalesce((select sum(t.amount) from ms_settlements t where t.from_member = m.id), 0)
+      - coalesce((select sum(t.amount) from ms_settlements t where t.to_member = m.id), 0)
+      + coalesce((select sum(t.amount) from ms_settlements t where t.from_member = m.id), 0)
     , 2) as net_balance
   from ms_group_members m
   where m.group_id = p_group_id
