@@ -8,6 +8,26 @@ const APP_TAG = 'merashare';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Each group settles in its own base_currency (e.g. an overseas group visiting
+// India still settles in EUR/USD, converting their INR spends back to it) --
+// never assume ₹ globally. CURRENCY_OPTIONS doubles as the add-expense/
+// create-group dropdown list.
+const CURRENCY_SYMBOLS = { INR: '₹', EUR: '€', USD: '$', GBP: '£', AED: 'AED ', SGD: 'S$', THB: '฿', NPR: 'Rs ' };
+const CURRENCY_OPTIONS = [
+  { code: 'INR', label: '₹ INR — Indian Rupee' },
+  { code: 'EUR', label: '€ EUR — Euro' },
+  { code: 'USD', label: '$ USD — US Dollar' },
+  { code: 'GBP', label: '£ GBP — British Pound' },
+  { code: 'AED', label: 'AED — UAE Dirham' },
+  { code: 'SGD', label: 'SGD — Singapore Dollar' },
+  { code: 'THB', label: 'THB — Thai Baht' },
+  { code: 'NPR', label: 'NPR — Nepalese Rupee' }
+];
+
+function currencySymbol(code) {
+  return CURRENCY_SYMBOLS[code] || ((code || 'INR') + ' ');
+}
+
 function tagAuthEmail(email) {
   const at = (email || '').indexOf('@');
   if (at === -1) return email;

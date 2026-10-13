@@ -69,6 +69,7 @@
 <script>
 const groupId = new URLSearchParams(window.location.search).get('id');
 let members = [];
+let groupCurrency = 'INR';
 
 function escapeHtml(s) {
   const d = document.createElement('div');
@@ -164,6 +165,7 @@ async function loadGroup() {
   if (error || !data) { window.location.href = 'dashboard.html'; return; }
   document.getElementById('groupName').textContent = data.name;
   document.getElementById('inviteCode').textContent = data.invite_code;
+  groupCurrency = data.base_currency || 'INR';
 }
 
 async function loadMembers() {
@@ -187,16 +189,17 @@ async function loadBalances() {
     return;
   }
 
+  const sym = currencySymbol(groupCurrency);
   const total = data.reduce((s, b) => s + Number(b.amount), 0);
   let totalCls = 'amount-even', totalText = "You're all settled up";
-  if (total > 0.005) { totalCls = 'amount-owed'; totalText = 'Overall, you are owed ₹' + total.toFixed(2); }
-  else if (total < -0.005) { totalCls = 'amount-owe'; totalText = 'Overall, you owe ₹' + Math.abs(total).toFixed(2); }
+  if (total > 0.005) { totalCls = 'amount-owed'; totalText = 'Overall, you are owed ' + sym + total.toFixed(2); }
+  else if (total < -0.005) { totalCls = 'amount-owe'; totalText = 'Overall, you owe ' + sym + Math.abs(total).toFixed(2); }
 
   const rows = data.map(b => {
     const amt = Number(b.amount);
     let cls = 'amount-even', text = 'settled up';
-    if (amt > 0.005) { cls = 'amount-owed'; text = 'owes you ₹' + amt.toFixed(2); }
-    else if (amt < -0.005) { cls = 'amount-owe'; text = 'you owe ₹' + Math.abs(amt).toFixed(2); }
+    if (amt > 0.005) { cls = 'amount-owed'; text = 'owes you ' + sym + amt.toFixed(2); }
+    else if (amt < -0.005) { cls = 'amount-owe'; text = 'you owe ' + sym + Math.abs(amt).toFixed(2); }
     return '<div class="balance-row"><span>' + escapeHtml(b.other_display_name) + '</span><span class="' + cls + '">' + text + '</span></div>';
   }).join('');
 
@@ -219,8 +222,9 @@ async function loadExpenses() {
     return;
   }
 
+  const sym = currencySymbol(groupCurrency);
   const grandTotal = expenses.reduce((s, e) => s + Number(e.amount), 0);
-  totalEl.textContent = 'Total spent on this trip (everyone combined, regardless of who paid or who it was split with): ₹' + grandTotal.toFixed(2);
+  totalEl.textContent = 'Total spent on this trip (everyone combined, regardless of who paid or who it was split with): ' + sym + grandTotal.toFixed(2);
 
   const memberById = {};
   members.forEach(m => memberById[m.id] = m.display_name);
@@ -231,7 +235,7 @@ async function loadExpenses() {
     const payer = memberById[e.paid_by_member] || '?';
     const canEdit = e.created_by === myUserId;
     const refLine = e.reference_note ? '<br><span class="muted">Ref: ' + escapeHtml(e.reference_note) + '</span>' : '';
-    const fxLine = (e.currency && e.currency !== 'INR' && e.foreign_amount != null)
+    const fxLine = (e.currency && e.currency !== groupCurrency && e.foreign_amount != null)
       ? '<br><span class="muted">' + Number(e.foreign_amount).toFixed(2) + ' ' + escapeHtml(e.currency) + ' @ ' + Number(e.fx_rate).toFixed(4) + '</span>'
       : '';
     const receiptTick = e.receipt_path
@@ -239,7 +243,7 @@ async function loadExpenses() {
       : '';
     return '<div class="expense-row">' +
       '<span>' + escapeHtml(e.description) + receiptTick + '<br><span class="muted">paid by ' + escapeHtml(payer) + '</span>' + refLine + fxLine + '</span>' +
-      '<span>₹' + Number(e.amount).toFixed(2) +
+      '<span>' + sym + Number(e.amount).toFixed(2) +
       (canEdit ?
         ' <a href="add-expense.html?group=' + groupId + '&expense=' + e.id + '" class="muted" style="margin-left:8px;">✎ Edit</a>' +
         ' <a href="#" class="muted" onclick="deleteExpense(\'' + e.id + '\');return false;" style="margin-left:8px;">✕ Delete</a>'

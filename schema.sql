@@ -11,6 +11,7 @@ create table if not exists ms_groups (
   name text not null,
   invite_code text not null unique,
   created_by uuid not null references auth.users(id),
+  base_currency text not null default 'INR',
   created_at timestamptz not null default now()
 );
 
@@ -137,7 +138,7 @@ create policy ms_demo_visitors_insert on ms_demo_visitors
 -- RPCs (all SECURITY DEFINER, all re-check auth.uid() membership themselves)
 -- ============================================================
 
-create or replace function ms_create_group(p_name text, p_display_name text)
+create or replace function ms_create_group(p_name text, p_display_name text, p_base_currency text default 'INR')
 returns ms_groups
 language plpgsql
 security definer
@@ -160,8 +161,8 @@ begin
   loop
     v_code := upper(substr(md5(random()::text || clock_timestamp()::text), 1, 8));
     begin
-      insert into ms_groups (name, invite_code, created_by)
-      values (trim(p_name), v_code, auth.uid())
+      insert into ms_groups (name, invite_code, created_by, base_currency)
+      values (trim(p_name), v_code, auth.uid(), coalesce(nullif(trim(upper(p_base_currency)), ''), 'INR'))
       returning * into v_group;
       exit;
     exception when unique_violation then
@@ -527,7 +528,7 @@ as $$
 $$;
 
 create or replace function ms_my_groups_summary()
-returns table (group_id uuid, name text, invite_code text, my_net_balance numeric)
+returns table (group_id uuid, name text, invite_code text, my_net_balance numeric, base_currency text)
 language sql
 security definer
 set search_path = public
@@ -541,7 +542,8 @@ as $$
       select net_balance from ms_group_balances(g.id) b
       join ms_group_members me on me.id = b.member_id
       where me.user_id = auth.uid()
-    ), 0) as my_net_balance
+    ), 0) as my_net_balance,
+    g.base_currency
   from ms_groups g
   join ms_group_members me2 on me2.group_id = g.id and me2.user_id = auth.uid()
   where ms_is_group_member(g.id)
@@ -652,7 +654,7 @@ as $$
 $$;
 
 revoke all on function
-  ms_create_group(text, text),
+  ms_create_group(text, text, text),
   ms_join_group(text, text),
   ms_add_member(uuid, text, text),
   ms_claim_pending_memberships(),
@@ -668,7 +670,7 @@ revoke all on function
 from public;
 
 grant execute on function
-  ms_create_group(text, text),
+  ms_create_group(text, text, text),
   ms_join_group(text, text),
   ms_add_member(uuid, text, text),
   ms_claim_pending_memberships(),

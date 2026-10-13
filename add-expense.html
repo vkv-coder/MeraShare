@@ -22,24 +22,14 @@
       <input type="text" id="description" required placeholder="e.g. Dinner, Cab, Groceries">
 
       <label for="currency">Currency</label>
-      <select id="currency">
-        <option value="INR" selected>₹ INR — Indian Rupee</option>
-        <option value="AED">AED — UAE Dirham</option>
-        <option value="USD">USD — US Dollar</option>
-        <option value="EUR">EUR — Euro</option>
-        <option value="GBP">GBP — British Pound</option>
-        <option value="SGD">SGD — Singapore Dollar</option>
-        <option value="THB">THB — Thai Baht</option>
-        <option value="NPR">NPR — Nepalese Rupee</option>
-        <option value="other">Other…</option>
-      </select>
+      <select id="currency"></select>
       <input type="text" id="currencyOther" placeholder="e.g. JPY, MYR" style="display:none;margin-top:6px;">
 
-      <label for="amount" id="amountLabel">Amount (₹)</label>
+      <label for="amount" id="amountLabel">Amount</label>
       <input type="number" id="amount" required min="0.01" step="0.01">
 
       <div id="fxRow" style="display:none;">
-        <label for="fxRate">Conversion rate (1 <span id="fxCurLabel">—</span> = how many ₹?)</label>
+        <label for="fxRate">Conversion rate (1 <span id="fxCurLabel">—</span> = how many <span id="fxBaseLabel">—</span>?)</label>
         <input type="number" id="fxRate" step="0.0001" min="0.0001" placeholder="e.g. 22.50">
         <p class="muted" id="fxPreview" style="margin:4px 0 0;"></p>
       </div>
@@ -96,6 +86,7 @@ let members = [];
 let splitType = 'equal';
 let existingSplits = null; // {member_id: share_amount} when editing
 let existingReceiptPath = null;
+let groupCurrency = 'INR';
 
 function escapeHtml(s) {
   const d = document.createElement('div');
@@ -108,6 +99,17 @@ async function init() {
   if (!session) return;
   if (!groupId) { window.location.href = 'dashboard.html'; return; }
   document.getElementById('backBtn').href = 'group.html?id=' + groupId;
+
+  const { data: groupRow } = await supabaseClient.from('ms_groups').select('base_currency').eq('id', groupId).single();
+  groupCurrency = (groupRow && groupRow.base_currency) || 'INR';
+
+  const currencySelect = document.getElementById('currency');
+  const hasGroupCurrencyPreset = CURRENCY_OPTIONS.some(c => c.code === groupCurrency);
+  currencySelect.innerHTML =
+    (hasGroupCurrencyPreset ? '' : '<option value="' + groupCurrency + '">' + groupCurrency + ' (this group\'s currency)</option>') +
+    CURRENCY_OPTIONS.map(c => '<option value="' + c.code + '">' + c.label + (c.code === groupCurrency ? ' — this group\'s currency' : '') + '</option>').join('') +
+    '<option value="other">Other…</option>';
+  currencySelect.value = groupCurrency;
 
   const { data } = await supabaseClient.from('ms_group_members').select('*').eq('group_id', groupId).order('joined_at');
   members = data || [];
@@ -135,12 +137,10 @@ async function init() {
     }
 
     const cur = exp.currency || 'INR';
-    if (cur === 'INR') {
+    if (cur === groupCurrency) {
       document.getElementById('amount').value = exp.amount;
     } else {
-      const presets = ['AED', 'USD', 'EUR', 'GBP', 'SGD', 'THB', 'NPR'];
-      const currencySelect = document.getElementById('currency');
-      if (presets.includes(cur)) {
+      if (CURRENCY_OPTIONS.some(c => c.code === cur) || cur === groupCurrency) {
         currencySelect.value = cur;
       } else {
         currencySelect.value = 'other';
@@ -175,13 +175,18 @@ function selectedCurrency() {
   return sel;
 }
 
+function isForeignSelected() {
+  return selectedCurrency() !== groupCurrency;
+}
+
 function onCurrencyChange() {
   const sel = document.getElementById('currency').value;
-  const isForeign = sel !== 'INR';
+  const isForeign = isForeignSelected();
   document.getElementById('currencyOther').style.display = sel === 'other' ? 'block' : 'none';
   document.getElementById('fxRow').style.display = isForeign ? 'block' : 'none';
-  document.getElementById('amountLabel').textContent = isForeign ? 'Amount (' + selectedCurrency() + ')' : 'Amount (₹)';
+  document.getElementById('amountLabel').textContent = 'Amount (' + selectedCurrency() + ')';
   document.getElementById('fxCurLabel').textContent = selectedCurrency();
+  document.getElementById('fxBaseLabel').textContent = groupCurrency;
   updateFxPreview();
   renderSplitInputs();
 }
@@ -191,15 +196,15 @@ function getForeignAmount() {
 }
 
 function getFxRate() {
-  if (document.getElementById('currency').value === 'INR') return 1;
+  if (!isForeignSelected()) return 1;
   return parseFloat(document.getElementById('fxRate').value) || 0;
 }
 
 function updateFxPreview() {
   const preview = document.getElementById('fxPreview');
-  if (document.getElementById('currency').value === 'INR') { preview.textContent = ''; return; }
-  const inr = getForeignAmount() * getFxRate();
-  preview.textContent = '= ₹' + inr.toFixed(2) + (getFxRate() > 0 ? '' : ' (enter a conversion rate)');
+  if (!isForeignSelected()) { preview.textContent = ''; return; }
+  const converted = getForeignAmount() * getFxRate();
+  preview.textContent = '= ' + currencySymbol(groupCurrency) + converted.toFixed(2) + (getFxRate() > 0 ? '' : ' (enter a conversion rate)');
 }
 
 document.querySelectorAll('.split-type-tabs button').forEach(btn => {
@@ -212,9 +217,9 @@ document.querySelectorAll('.split-type-tabs button').forEach(btn => {
 });
 
 function getAmount() {
-  // INR-equivalent amount -- this is what every split calculation below
-  // uses, regardless of which currency was actually typed in.
-  if (document.getElementById('currency').value === 'INR') return getForeignAmount();
+  // Group-base-currency-equivalent amount -- this is what every split
+  // calculation below uses, regardless of which currency was typed in.
+  if (!isForeignSelected()) return getForeignAmount();
   return Math.round(getForeignAmount() * getFxRate() * 100) / 100;
 }
 
@@ -228,7 +233,7 @@ function renderSplitInputs() {
     el.innerHTML = members.map(m =>
       '<div class="split-member-row">' +
       '<label><input type="checkbox" class="eq-check" data-id="' + m.id + '" checked style="width:auto;margin-right:8px;">' + escapeHtml(m.display_name) + '</label>' +
-      '<span class="muted eq-share" data-id="' + m.id + '">₹' + share.toFixed(2) + '</span>' +
+      '<span class="muted eq-share" data-id="' + m.id + '">' + currencySymbol(groupCurrency) + share.toFixed(2) + '</span>' +
       '</div>'
     ).join('');
     el.querySelectorAll('.eq-check').forEach(cb => cb.addEventListener('change', updateEqualShares));
@@ -283,7 +288,7 @@ function updateEqualShares() {
   const share = included.length ? amount / included.length : 0;
   document.querySelectorAll('.eq-share').forEach(span => {
     const included_ = included.includes(span.dataset.id);
-    span.textContent = included_ ? '₹' + share.toFixed(2) : '—';
+    span.textContent = included_ ? currencySymbol(groupCurrency) + share.toFixed(2) : '—';
   });
   document.getElementById('splitStatus').textContent = included.length + ' of ' + members.length + ' members included.';
 }
@@ -294,7 +299,8 @@ function updateSplitStatus() {
   if (splitType === 'exact') {
     const total = Array.from(document.querySelectorAll('.exact-input')).reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
     const diff = amount - total;
-    statusEl.textContent = 'Splits total ₹' + total.toFixed(2) + ' of ₹' + amount.toFixed(2) + (Math.abs(diff) > 0.05 ? ' (off by ₹' + diff.toFixed(2) + ')' : ' ✓');
+    const sym = currencySymbol(groupCurrency);
+    statusEl.textContent = 'Splits total ' + sym + total.toFixed(2) + ' of ' + sym + amount.toFixed(2) + (Math.abs(diff) > 0.05 ? ' (off by ' + sym + diff.toFixed(2) + ')' : ' ✓');
   } else if (splitType === 'percentage') {
     const total = Array.from(document.querySelectorAll('.pct-input')).reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
     statusEl.textContent = 'Percentages total ' + total.toFixed(2) + '%' + (Math.abs(total - 100) > 0.1 ? ' (should be 100%)' : ' ✓');
@@ -330,7 +336,7 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
   const paidBy = document.getElementById('paidBy').value;
   const splits = buildSplits();
   const currency = selectedCurrency();
-  const isForeign = document.getElementById('currency').value !== 'INR';
+  const isForeign = isForeignSelected();
   const fxRate = getFxRate();
   const foreignAmount = isForeign ? getForeignAmount() : null;
 

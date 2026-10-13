@@ -66,10 +66,11 @@ async function init() {
   });
 
   listEl.innerHTML = data.map(g => {
+    const sym = currencySymbol(g.base_currency);
     const bal = Number(g.my_net_balance);
     let balClass = 'amount-even', balText = 'all settled';
-    if (bal > 0.005) { balClass = 'amount-owed'; balText = 'you are owed ₹' + bal.toFixed(2); }
-    else if (bal < -0.005) { balClass = 'amount-owe'; balText = 'you owe ₹' + Math.abs(bal).toFixed(2); }
+    if (bal > 0.005) { balClass = 'amount-owed'; balText = 'you are owed ' + sym + bal.toFixed(2); }
+    else if (bal < -0.005) { balClass = 'amount-owe'; balText = 'you owe ' + sym + Math.abs(bal).toFixed(2); }
     const cover = coverByGroup[g.group_id];
     const thumb = cover
       ? '<img class="trip-thumb" src="' + supabaseClient.storage.from('ms-trip-photos').getPublicUrl(cover).data.publicUrl + '">'

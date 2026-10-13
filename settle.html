@@ -25,7 +25,7 @@
       <label for="toMember">Who received it</label>
       <select id="toMember"></select>
 
-      <label for="amount">Amount (₹)</label>
+      <label for="amount" id="amountLabel">Amount</label>
       <input type="number" id="amount" required min="0.01" step="0.01">
 
       <label for="note">Note (optional)</label>
@@ -52,6 +52,10 @@ async function init() {
   if (!session) return;
   if (!groupId) { window.location.href = 'dashboard.html'; return; }
   document.getElementById('backBtn').href = 'group.html?id=' + groupId;
+
+  const { data: groupRow } = await supabaseClient.from('ms_groups').select('base_currency').eq('id', groupId).single();
+  const groupCurrency = (groupRow && groupRow.base_currency) || 'INR';
+  document.getElementById('amountLabel').textContent = 'Amount (' + currencySymbol(groupCurrency) + ')';
 
   const { data } = await supabaseClient.from('ms_group_members').select('*').eq('group_id', groupId).order('joined_at');
   const members = data || [];

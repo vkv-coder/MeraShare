@@ -25,6 +25,9 @@
     <form id="createForm">
       <label for="groupName">Group name</label>
       <input type="text" id="groupName" required placeholder="e.g. Goa Trip, Flat 3B">
+      <label for="groupCurrency">Settlement currency</label>
+      <select id="groupCurrency"></select>
+      <p class="muted" style="margin:4px 0 0;">Members can log expenses in any currency — this is just what balances/settlements are tracked and paid in. Pick your group's home currency (e.g. an overseas group visiting India still settles in their own currency).</p>
       <button type="submit" class="btn-block">Create group</button>
       <div class="error-box" id="createError"></div>
     </form>
@@ -72,6 +75,10 @@ async function init() {
     document.getElementById('demoNotice').style.display = 'block';
   }
 
+  document.getElementById('groupCurrency').innerHTML = CURRENCY_OPTIONS.map(c =>
+    '<option value="' + c.code + '"' + (c.code === 'INR' ? ' selected' : '') + '>' + c.label + '</option>'
+  ).join('');
+
   await supabaseClient.rpc('ms_claim_pending_memberships');
   await loadGroups();
 }
@@ -97,10 +104,11 @@ async function loadGroups() {
   });
 
   listEl.innerHTML = data.map(g => {
+    const sym = currencySymbol(g.base_currency);
     const bal = Number(g.my_net_balance);
     let balClass = 'amount-even', balText = 'all settled';
-    if (bal > 0.005) { balClass = 'amount-owed'; balText = 'you are owed ₹' + bal.toFixed(2); }
-    else if (bal < -0.005) { balClass = 'amount-owe'; balText = 'you owe ₹' + Math.abs(bal).toFixed(2); }
+    if (bal > 0.005) { balClass = 'amount-owed'; balText = 'you are owed ' + sym + bal.toFixed(2); }
+    else if (bal < -0.005) { balClass = 'amount-owe'; balText = 'you owe ' + sym + Math.abs(bal).toFixed(2); }
     const names = (membersByGroup[g.group_id] || []).map(escapeHtml).join(', ');
     return '<a class="group-item" href="group.html?id=' + g.group_id + '">' +
       '<span>' + escapeHtml(g.name) + '<br><span class="muted" style="font-size:0.8rem;">' + names + '</span></span>' +
@@ -120,8 +128,9 @@ document.getElementById('createForm').addEventListener('submit', async (e) => {
   const errorBox = document.getElementById('createError');
   errorBox.style.display = 'none';
   const name = document.getElementById('groupName').value.trim();
+  const baseCurrency = document.getElementById('groupCurrency').value;
 
-  const { data, error } = await supabaseClient.rpc('ms_create_group', { p_name: name, p_display_name: myName });
+  const { data, error } = await supabaseClient.rpc('ms_create_group', { p_name: name, p_display_name: myName, p_base_currency: baseCurrency });
   if (error) { showError(errorBox, error); return; }
   window.location.href = 'group.html?id=' + data.id;
 });
