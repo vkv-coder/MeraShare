@@ -1,4 +1,4 @@
-const CACHE_NAME = 'merashare-v5';
+const CACHE_NAME = 'merashare-v6';
 const SHELL_FILES = [
   '/index.html',
   '/login.html',
@@ -51,10 +51,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-first for everything else (JS/CSS/manifest): a stale cached
+  // asset here (e.g. supabase-client.js missing a function a newer HTML
+  // page already calls) silently breaks pages with no visible error --
+  // they just hang on their initial "Loading..." state forever. Always
+  // prefer the live network copy when online; cache is purely an
+  // offline fallback now, not a way to skip re-fetching after a deploy.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).catch(() => cached);
-    })
+    fetch(event.request)
+      .then((res) => {
+        const resClone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+        return res;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

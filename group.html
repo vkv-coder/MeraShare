@@ -12,7 +12,10 @@
 <body>
 <div class="topbar">
   <span class="brand">💸 MeraShare</span>
-  <a class="home-btn" href="dashboard.html">Home</a>
+  <span style="display:flex;gap:12px;">
+    <a class="home-btn" href="dashboard.html">Home</a>
+    <a class="home-btn" href="#" id="logoutLink">Logout</a>
+  </span>
 </div>
 <div class="container">
   <div class="card">
@@ -283,6 +286,7 @@ document.getElementById('addMemberForm').addEventListener('submit', async (e) =>
   await loadBalances();
 });
 
+wireLogoutLink();
 init();
 </script>
 </body>

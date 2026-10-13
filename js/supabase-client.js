@@ -158,6 +158,16 @@ function enforceBiometricLock() {
   });
 }
 
+function wireLogoutLink(elId) {
+  const el = document.getElementById(elId || 'logoutLink');
+  if (!el) return;
+  el.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await supabaseClient.auth.signOut();
+    window.location.href = 'index.html';
+  });
+}
+
 function showError(el, err) {
   if (!el) return;
   el.textContent = (err && err.message) ? err.message : String(err);

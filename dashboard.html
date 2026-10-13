@@ -12,6 +12,7 @@
 <body class="has-tabs">
 <div class="topbar">
   <span class="brand">💸 MeraShare</span>
+  <a href="#" id="logoutLink" class="home-btn">Logout</a>
 </div>
 <div class="container">
   <div class="card">
@@ -146,6 +147,7 @@ document.getElementById('joinForm').addEventListener('submit', async (e) => {
   window.location.href = 'group.html?id=' + data;
 });
 
+wireLogoutLink();
 init();
 </script>
 </body>
