@@ -58,7 +58,7 @@ body {
   margin: 0 auto;
   background: linear-gradient(160deg, var(--brand), var(--brand-dark));
   color: #fff;
-  padding: 20px 20px 54px;
+  padding: 14px 20px 36px;
   text-align: center;
 }
 
@@ -66,28 +66,35 @@ body {
   display: block;
   font-weight: 700;
   font-size: 1.05rem;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .hero-illustration {
   width: 100%;
-  max-width: 220px;
+  max-width: 140px;
   height: auto;
-  margin: 8px auto 10px;
+  margin: 2px auto 6px;
   display: block;
 }
 
 .hero-headline {
-  font-size: 1.65rem;
+  font-size: 1.4rem;
   font-weight: 800;
-  margin: 4px 0 8px;
+  margin: 2px 0 6px;
 }
 
 .hero-tagline {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   opacity: 0.92;
   max-width: 380px;
   margin: 0 auto;
+}
+
+.brand-mark {
+  height: 26px;
+  width: auto;
+  vertical-align: middle;
+  margin-right: 6px;
 }
 
 .photo-strip {
