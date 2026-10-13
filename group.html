@@ -231,8 +231,11 @@ async function loadExpenses() {
     const payer = memberById[e.paid_by_member] || '?';
     const canEdit = e.created_by === myUserId;
     const refLine = e.reference_note ? '<br><span class="muted">Ref: ' + escapeHtml(e.reference_note) + '</span>' : '';
+    const fxLine = (e.currency && e.currency !== 'INR' && e.foreign_amount != null)
+      ? '<br><span class="muted">' + Number(e.foreign_amount).toFixed(2) + ' ' + escapeHtml(e.currency) + ' @ ' + Number(e.fx_rate).toFixed(4) + '</span>'
+      : '';
     return '<div class="expense-row">' +
-      '<span>' + escapeHtml(e.description) + '<br><span class="muted">paid by ' + escapeHtml(payer) + '</span>' + refLine + '</span>' +
+      '<span>' + escapeHtml(e.description) + '<br><span class="muted">paid by ' + escapeHtml(payer) + '</span>' + refLine + fxLine + '</span>' +
       '<span>₹' + Number(e.amount).toFixed(2) +
       (canEdit ?
         ' <a href="add-expense.html?group=' + groupId + '&expense=' + e.id + '" class="muted" style="margin-left:8px;">✎ Edit</a>' +

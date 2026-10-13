@@ -21,8 +21,28 @@
       <label for="description">Description</label>
       <input type="text" id="description" required placeholder="e.g. Dinner, Cab, Groceries">
 
-      <label for="amount">Amount (₹)</label>
+      <label for="currency">Currency</label>
+      <select id="currency">
+        <option value="INR" selected>₹ INR — Indian Rupee</option>
+        <option value="AED">AED — UAE Dirham</option>
+        <option value="USD">USD — US Dollar</option>
+        <option value="EUR">EUR — Euro</option>
+        <option value="GBP">GBP — British Pound</option>
+        <option value="SGD">SGD — Singapore Dollar</option>
+        <option value="THB">THB — Thai Baht</option>
+        <option value="NPR">NPR — Nepalese Rupee</option>
+        <option value="other">Other…</option>
+      </select>
+      <input type="text" id="currencyOther" placeholder="e.g. JPY, MYR" style="display:none;margin-top:6px;">
+
+      <label for="amount" id="amountLabel">Amount (₹)</label>
       <input type="number" id="amount" required min="0.01" step="0.01">
+
+      <div id="fxRow" style="display:none;">
+        <label for="fxRate">Conversion rate (1 <span id="fxCurLabel">—</span> = how many ₹?)</label>
+        <input type="number" id="fxRate" step="0.0001" min="0.0001" placeholder="e.g. 22.50">
+        <p class="muted" id="fxPreview" style="margin:4px 0 0;"></p>
+      </div>
 
       <label for="referenceNote">Reference / Bill no. <span class="muted">(optional)</span></label>
       <input type="text" id="referenceNote" placeholder="e.g. Bill #1234, UPI ref">
@@ -93,10 +113,26 @@ async function init() {
     if (expErr || !exp) { window.location.href = 'group.html?id=' + groupId; return; }
 
     document.getElementById('description').value = exp.description;
-    document.getElementById('amount').value = exp.amount;
     document.getElementById('referenceNote').value = exp.reference_note || '';
     document.getElementById('category').value = exp.category;
     paidBySelect.value = exp.paid_by_member;
+
+    const cur = exp.currency || 'INR';
+    if (cur === 'INR') {
+      document.getElementById('amount').value = exp.amount;
+    } else {
+      const presets = ['AED', 'USD', 'EUR', 'GBP', 'SGD', 'THB', 'NPR'];
+      const currencySelect = document.getElementById('currency');
+      if (presets.includes(cur)) {
+        currencySelect.value = cur;
+      } else {
+        currencySelect.value = 'other';
+        document.getElementById('currencyOther').value = cur;
+      }
+      document.getElementById('amount').value = exp.foreign_amount != null ? exp.foreign_amount : exp.amount;
+      document.getElementById('fxRate').value = exp.fx_rate || 1;
+      onCurrencyChange();
+    }
 
     const { data: splits } = await supabaseClient.from('ms_expense_splits').select('*').eq('expense_id', expenseId);
     existingSplits = {};
@@ -108,7 +144,45 @@ async function init() {
   }
 
   renderSplitInputs();
-  document.getElementById('amount').addEventListener('input', renderSplitInputs);
+  document.getElementById('amount').addEventListener('input', () => { updateFxPreview(); renderSplitInputs(); });
+  document.getElementById('fxRate').addEventListener('input', () => { updateFxPreview(); renderSplitInputs(); });
+  document.getElementById('currency').addEventListener('change', onCurrencyChange);
+  document.getElementById('currencyOther').addEventListener('input', () => { updateFxPreview(); });
+}
+
+function selectedCurrency() {
+  const sel = document.getElementById('currency').value;
+  if (sel === 'other') {
+    return (document.getElementById('currencyOther').value.trim() || 'FOREIGN').toUpperCase();
+  }
+  return sel;
+}
+
+function onCurrencyChange() {
+  const sel = document.getElementById('currency').value;
+  const isForeign = sel !== 'INR';
+  document.getElementById('currencyOther').style.display = sel === 'other' ? 'block' : 'none';
+  document.getElementById('fxRow').style.display = isForeign ? 'block' : 'none';
+  document.getElementById('amountLabel').textContent = isForeign ? 'Amount (' + selectedCurrency() + ')' : 'Amount (₹)';
+  document.getElementById('fxCurLabel').textContent = selectedCurrency();
+  updateFxPreview();
+  renderSplitInputs();
+}
+
+function getForeignAmount() {
+  return parseFloat(document.getElementById('amount').value) || 0;
+}
+
+function getFxRate() {
+  if (document.getElementById('currency').value === 'INR') return 1;
+  return parseFloat(document.getElementById('fxRate').value) || 0;
+}
+
+function updateFxPreview() {
+  const preview = document.getElementById('fxPreview');
+  if (document.getElementById('currency').value === 'INR') { preview.textContent = ''; return; }
+  const inr = getForeignAmount() * getFxRate();
+  preview.textContent = '= ₹' + inr.toFixed(2) + (getFxRate() > 0 ? '' : ' (enter a conversion rate)');
 }
 
 document.querySelectorAll('.split-type-tabs button').forEach(btn => {
@@ -121,7 +195,10 @@ document.querySelectorAll('.split-type-tabs button').forEach(btn => {
 });
 
 function getAmount() {
-  return parseFloat(document.getElementById('amount').value) || 0;
+  // INR-equivalent amount -- this is what every split calculation below
+  // uses, regardless of which currency was actually typed in.
+  if (document.getElementById('currency').value === 'INR') return getForeignAmount();
+  return Math.round(getForeignAmount() * getFxRate() * 100) / 100;
 }
 
 function renderSplitInputs() {
@@ -235,9 +312,17 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
   const referenceNote = document.getElementById('referenceNote').value.trim();
   const paidBy = document.getElementById('paidBy').value;
   const splits = buildSplits();
+  const currency = selectedCurrency();
+  const isForeign = document.getElementById('currency').value !== 'INR';
+  const fxRate = getFxRate();
+  const foreignAmount = isForeign ? getForeignAmount() : null;
 
   if (splits.length === 0) {
     showError(errorBox, { message: 'Select at least one member to split with.' });
+    return;
+  }
+  if (isForeign && fxRate <= 0) {
+    showError(errorBox, { message: 'Enter a conversion rate for this currency.' });
     return;
   }
 
@@ -249,7 +334,10 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
         p_paid_by_member: paidBy,
         p_category: category,
         p_splits: splits,
-        p_reference_note: referenceNote || null
+        p_reference_note: referenceNote || null,
+        p_currency: currency,
+        p_fx_rate: fxRate,
+        p_foreign_amount: foreignAmount
       })
     : await supabaseClient.rpc('ms_add_expense', {
         p_group_id: groupId,
@@ -258,7 +346,10 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
         p_paid_by_member: paidBy,
         p_category: category,
         p_splits: splits,
-        p_reference_note: referenceNote || null
+        p_reference_note: referenceNote || null,
+        p_currency: currency,
+        p_fx_rate: fxRate,
+        p_foreign_amount: foreignAmount
       });
 
   if (error) { showError(errorBox, error); return; }
