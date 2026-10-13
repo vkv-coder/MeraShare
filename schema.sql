@@ -39,6 +39,7 @@ create table if not exists ms_expenses (
   currency text not null default 'INR',
   fx_rate numeric not null default 1,
   foreign_amount numeric,
+  receipt_path text,
   created_at timestamptz not null default now()
 );
 
@@ -295,7 +296,8 @@ create or replace function ms_add_expense(
   p_reference_note text default null,
   p_currency text default 'INR',
   p_fx_rate numeric default 1,
-  p_foreign_amount numeric default null
+  p_foreign_amount numeric default null,
+  p_receipt_path text default null
 )
 returns ms_expenses
 language plpgsql
@@ -341,9 +343,9 @@ begin
     raise exception 'splits (%) do not add up to amount (%)', v_sum, p_amount;
   end if;
 
-  insert into ms_expenses (group_id, description, amount, paid_by_member, created_by, category, reference_note, currency, fx_rate, foreign_amount)
+  insert into ms_expenses (group_id, description, amount, paid_by_member, created_by, category, reference_note, currency, fx_rate, foreign_amount, receipt_path)
   values (p_group_id, trim(p_description), p_amount, p_paid_by_member, auth.uid(), coalesce(trim(p_category), 'general'), nullif(trim(p_reference_note), ''),
-          coalesce(nullif(trim(p_currency), ''), 'INR'), coalesce(p_fx_rate, 1), p_foreign_amount)
+          coalesce(nullif(trim(p_currency), ''), 'INR'), coalesce(p_fx_rate, 1), p_foreign_amount, p_receipt_path)
   returning * into v_expense;
 
   for v_split in select * from jsonb_array_elements(p_splits) loop
@@ -370,7 +372,8 @@ create or replace function ms_update_expense(
   p_reference_note text default null,
   p_currency text default 'INR',
   p_fx_rate numeric default 1,
-  p_foreign_amount numeric default null
+  p_foreign_amount numeric default null,
+  p_receipt_path text default null
 )
 returns ms_expenses
 language plpgsql
@@ -426,7 +429,8 @@ begin
       reference_note = nullif(trim(p_reference_note), ''),
       currency = coalesce(nullif(trim(p_currency), ''), 'INR'),
       fx_rate = coalesce(p_fx_rate, 1),
-      foreign_amount = p_foreign_amount
+      foreign_amount = p_foreign_amount,
+      receipt_path = p_receipt_path
   where id = p_expense_id
   returning * into v_expense;
 
@@ -652,8 +656,8 @@ revoke all on function
   ms_join_group(text, text),
   ms_add_member(uuid, text, text),
   ms_claim_pending_memberships(),
-  ms_add_expense(uuid, text, numeric, uuid, text, jsonb, text, text, numeric, numeric),
-  ms_update_expense(uuid, text, numeric, uuid, text, jsonb, text, text, numeric, numeric),
+  ms_add_expense(uuid, text, numeric, uuid, text, jsonb, text, text, numeric, numeric, text),
+  ms_update_expense(uuid, text, numeric, uuid, text, jsonb, text, text, numeric, numeric, text),
   ms_delete_expense(uuid),
   ms_record_settlement(uuid, uuid, uuid, numeric, text),
   ms_group_balances(uuid),
@@ -668,8 +672,8 @@ grant execute on function
   ms_join_group(text, text),
   ms_add_member(uuid, text, text),
   ms_claim_pending_memberships(),
-  ms_add_expense(uuid, text, numeric, uuid, text, jsonb, text, text, numeric, numeric),
-  ms_update_expense(uuid, text, numeric, uuid, text, jsonb, text, text, numeric, numeric),
+  ms_add_expense(uuid, text, numeric, uuid, text, jsonb, text, text, numeric, numeric, text),
+  ms_update_expense(uuid, text, numeric, uuid, text, jsonb, text, text, numeric, numeric, text),
   ms_delete_expense(uuid),
   ms_record_settlement(uuid, uuid, uuid, numeric, text),
   ms_group_balances(uuid),

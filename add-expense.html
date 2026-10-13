@@ -47,6 +47,16 @@
       <label for="referenceNote">Reference / Bill no. <span class="muted">(optional)</span></label>
       <input type="text" id="referenceNote" placeholder="e.g. Bill #1234, UPI ref">
 
+      <label>Bill photo <span class="muted">(optional)</span></label>
+      <div id="receiptPreviewBox" style="display:none;margin-bottom:8px;">
+        <img id="receiptPreviewImg" style="width:96px;height:96px;object-fit:cover;border-radius:8px;display:block;">
+        <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:0.85rem;color:var(--muted);">
+          <input type="checkbox" id="removeReceiptCheck" style="width:auto;"> Remove this photo
+        </label>
+      </div>
+      <input type="file" id="receiptInput" accept="image/*">
+      <div class="error-box" id="receiptError"></div>
+
       <label for="category">Category</label>
       <select id="category">
         <option value="general">General</option>
@@ -85,6 +95,7 @@ const expenseId = new URLSearchParams(window.location.search).get('expense');
 let members = [];
 let splitType = 'equal';
 let existingSplits = null; // {member_id: share_amount} when editing
+let existingReceiptPath = null;
 
 function escapeHtml(s) {
   const d = document.createElement('div');
@@ -116,6 +127,12 @@ async function init() {
     document.getElementById('referenceNote').value = exp.reference_note || '';
     document.getElementById('category').value = exp.category;
     paidBySelect.value = exp.paid_by_member;
+
+    if (exp.receipt_path) {
+      existingReceiptPath = exp.receipt_path;
+      document.getElementById('receiptPreviewBox').style.display = 'block';
+      document.getElementById('receiptPreviewImg').src = supabaseClient.storage.from('ms-trip-photos').getPublicUrl(exp.receipt_path).data.publicUrl;
+    }
 
     const cur = exp.currency || 'INR';
     if (cur === 'INR') {
@@ -326,6 +343,31 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
     return;
   }
 
+  const receiptError = document.getElementById('receiptError');
+  receiptError.style.display = 'none';
+
+  let receiptPath = existingReceiptPath;
+  const newFile = document.getElementById('receiptInput').files[0];
+  const removeReceipt = document.getElementById('removeReceiptCheck').checked;
+
+  if (newFile) {
+    if (!newFile.type.startsWith('image/')) {
+      showError(receiptError, { message: 'Bill photo must be an image file.' });
+      return;
+    }
+    if (newFile.size > 8 * 1024 * 1024) {
+      showError(receiptError, { message: 'Bill photo is too large (max 8MB).' });
+      return;
+    }
+    const ext = (newFile.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = groupId + '/' + crypto.randomUUID() + '.' + ext;
+    const { error: uploadErr } = await supabaseClient.storage.from('ms-trip-photos').upload(path, newFile);
+    if (uploadErr) { showError(receiptError, uploadErr); return; }
+    receiptPath = path;
+  } else if (removeReceipt) {
+    receiptPath = null;
+  }
+
   const { error } = expenseId
     ? await supabaseClient.rpc('ms_update_expense', {
         p_expense_id: expenseId,
@@ -337,7 +379,8 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
         p_reference_note: referenceNote || null,
         p_currency: currency,
         p_fx_rate: fxRate,
-        p_foreign_amount: foreignAmount
+        p_foreign_amount: foreignAmount,
+        p_receipt_path: receiptPath
       })
     : await supabaseClient.rpc('ms_add_expense', {
         p_group_id: groupId,
@@ -349,10 +392,16 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
         p_reference_note: referenceNote || null,
         p_currency: currency,
         p_fx_rate: fxRate,
-        p_foreign_amount: foreignAmount
+        p_foreign_amount: foreignAmount,
+        p_receipt_path: receiptPath
       });
 
   if (error) { showError(errorBox, error); return; }
+
+  if ((newFile || removeReceipt) && existingReceiptPath && existingReceiptPath !== receiptPath) {
+    await supabaseClient.storage.from('ms-trip-photos').remove([existingReceiptPath]);
+  }
+
   window.location.href = 'group.html?id=' + groupId;
 });
 

@@ -234,8 +234,11 @@ async function loadExpenses() {
     const fxLine = (e.currency && e.currency !== 'INR' && e.foreign_amount != null)
       ? '<br><span class="muted">' + Number(e.foreign_amount).toFixed(2) + ' ' + escapeHtml(e.currency) + ' @ ' + Number(e.fx_rate).toFixed(4) + '</span>'
       : '';
+    const receiptTick = e.receipt_path
+      ? ' <a href="' + photoPublicUrl(e.receipt_path) + '" target="_blank" rel="noopener" title="View bill photo" style="text-decoration:none;">📎✅</a>'
+      : '';
     return '<div class="expense-row">' +
-      '<span>' + escapeHtml(e.description) + '<br><span class="muted">paid by ' + escapeHtml(payer) + '</span>' + refLine + fxLine + '</span>' +
+      '<span>' + escapeHtml(e.description) + receiptTick + '<br><span class="muted">paid by ' + escapeHtml(payer) + '</span>' + refLine + fxLine + '</span>' +
       '<span>₹' + Number(e.amount).toFixed(2) +
       (canEdit ?
         ' <a href="add-expense.html?group=' + groupId + '&expense=' + e.id + '" class="muted" style="margin-left:8px;">✎ Edit</a>' +
