@@ -219,7 +219,12 @@ async function loadExpenses() {
   const el = document.getElementById('expenseList');
   const totalEl = document.getElementById('expenseTotal');
 
-  if (error || !expenses || expenses.length === 0) {
+  if (error) {
+    el.innerHTML = '<div class="empty-state">Could not load expenses - please try again.</div>';
+    totalEl.textContent = '';
+    return;
+  }
+  if (!expenses || expenses.length === 0) {
     el.innerHTML = '<div class="empty-state">No expenses yet. Add the first one above.</div>';
     totalEl.textContent = '';
     return;
